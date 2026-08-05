@@ -18,14 +18,37 @@ globalThis.__PEEK__ = globalThis.__PEEK__ || {};
 
 globalThis.__PEEK__.CSS = /* css */ `
 :host {
+  /* Custom properties survive all:initial — the all keyword deliberately
+     excludes them — so the type tokens can be declared alongside it. They are
+     the same two stacks the options page and the side panel use. */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+
   all: initial;
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-family: var(--font);
 }
 
 *, *::before, *::after { box-sizing: border-box; }
 
 /* ── Design tokens ──────────────────────────────────────────────────────── */
 .root {
+  /* Type, restated inside the shadow tree rather than left to :host.
+     A rule in the outer tree that matches the host element — a page-wide
+     universal selector is the common one — beats :host outright, not on
+     specificity but because the outer tree wins for host styling. The page's
+     serif then inherits all the way down to the fallback text. Nothing outside
+     can name .root, so a plain declaration here is the end of the argument.
+     The shorthand covers size, weight, style and line-height, which leak by
+     exactly the same route; the rest are the inherited text properties a
+     universal selector also tends to set. */
+  font: 400 13px/1.5 var(--font);
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-transform: none;
+  text-indent: 0;
+  text-align: start;
+  -webkit-font-smoothing: antialiased;
+
   /* Geometry. The right inset has a hard floor because the button rail lives
      in that gutter; below it the rail moves inside the pane instead. */
   --inset-y: clamp(12px, 3.4vh, 38px);
@@ -259,9 +282,7 @@ dialog::backdrop {
   border-radius: 6px;
   background: var(--tip-bg);
   color: var(--tip-fg);
-  /* Restated rather than inherited: :host uses all:initial, and a stray
-     serif here is the one place it shows. */
-  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  font-family: var(--font);
   font-size: 11.5px;
   font-weight: 530;
   letter-spacing: -0.003em;

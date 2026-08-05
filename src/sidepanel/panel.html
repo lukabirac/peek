@@ -6,6 +6,10 @@
     <style>
       :root {
         color-scheme: light dark;
+        /* Same pair as peek-styles.js and options.css. */
+        --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter",
+          system-ui, sans-serif;
+        --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
         --bg: #ffffff;
         --ink: #101012;
         --on-ink: #ffffff;
@@ -31,8 +35,7 @@
         overflow: hidden;
         background: var(--bg);
         color: var(--ink);
-        font: 400 13px/1.55 -apple-system, BlinkMacSystemFont, "SF Pro Text",
-          "Inter", system-ui, sans-serif;
+        font: 400 13px/1.55 var(--font);
         -webkit-font-smoothing: antialiased;
       }
 

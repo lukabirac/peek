@@ -7,6 +7,11 @@
  */
 
 :root {
+  /* One type stack for the whole extension — the peek's shadow root, the side
+     panel and the split button declare the identical pair. */
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+
   --bg: #fafaf9;
   --card: #ffffff;
   --ink: #101012;
@@ -44,8 +49,7 @@ body {
   padding: 64px 24px 96px;
   background: var(--bg);
   color: var(--text);
-  font: 400 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter",
-    system-ui, sans-serif;
+  font: 400 14px/1.5 var(--font);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -124,7 +128,7 @@ h1 {
 .t { font-weight: 530; letter-spacing: -0.008em; }
 .d { color: var(--dim); font-size: 12.5px; line-height: 1.5; max-width: 56ch; }
 code {
-  font: 500 11.5px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  font: 500 11.5px/1 var(--font-mono);
   background: var(--hover);
   padding: 2px 5px;
   border-radius: 4px;
@@ -193,7 +197,7 @@ code {
   border: 0.5px solid var(--line-strong);
   background: transparent;
   color: var(--text);
-  font: 400 12.5px/1.7 ui-monospace, "SF Mono", Menlo, monospace;
+  font: 400 12.5px/1.7 var(--font-mono);
   resize: vertical;
 }
 .slider { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
@@ -226,7 +230,7 @@ code {
   box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--ink);
 }
 .rangeVal {
-  font: 500 11px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  font: 500 11px/1 var(--font-mono);
   color: var(--dim);
   min-width: 76px;
   text-align: right;
@@ -257,7 +261,7 @@ kbd {
   border-radius: 5px;
   border: 0.5px solid var(--line-strong);
   background: var(--hover);
-  font: 500 11px/1 -apple-system, system-ui, sans-serif;
+  font: 500 11px/1 var(--font);
   color: var(--text);
 }
 

@@ -10,6 +10,11 @@
         height: 100%;
         background: transparent;
         overflow: hidden;
+        /* Nothing here renders text today — the button is a bare SVG — but the
+           stack is stated anyway so this document can never be the odd one out
+           if it ever grows a label. Same pair as every other surface. */
+        font: 400 13px/1.5 var(--font);
+        -webkit-font-smoothing: antialiased;
       }
       button {
         all: unset;
@@ -34,6 +39,9 @@
       /* Neutral, matching .orb in peek-styles.js. No colour of its own —
          the peek's chrome is monochrome by design. */
       :root {
+        --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter",
+          system-ui, sans-serif;
+        --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
         --bg: rgba(255, 255, 255, 0.92);
         --bg-hover: #ffffff;
         --fg: #232326;

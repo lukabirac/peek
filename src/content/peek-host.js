@@ -186,6 +186,14 @@
   const ORIGIN_CLAMP = [8, 92];
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+  // Swipe-to-dismiss commit points, in panel pixels and px/ms. All are tested
+  // during the gesture rather than after it — see _wheel. A fling carries its
+  // own floor: however fast the flick, the panel has to have actually moved,
+  // or one sharp wheel tick would throw the peek away.
+  const SWIPE_COMMIT_PX = 118;
+  const SWIPE_FLING_V = 0.9;
+  const SWIPE_FLING_MIN_PX = 46;
+
   class Peek {
     constructor() {
       // The peek keeps its own session history, entirely separate from the
@@ -719,11 +727,17 @@
       if (!this.drag && dx > -2) return;
 
       if (!this.drag) {
-        this.drag = { x: 0, last: performance.now(), v: 0 };
+        this.drag = { x: 0, last: performance.now(), v: 0, n: 0 };
         this.panel.dataset.dragging = "1";
+        this.panel.style.willChange = "transform, opacity";
       }
       const now = performance.now();
-      this.drag.v = -dx / Math.max(1, now - this.drag.last);
+      const dt = now - this.drag.last;
+      this.drag.n++;
+      // The first event of a gesture has no interval to divide by, and
+      // dx/~0ms is an enormous number that would read as a fling from a
+      // standing start. Velocity only means anything from the second sample on.
+      if (this.drag.n > 1) this.drag.v = -dx / Math.max(1, dt);
       this.drag.last = now;
       this.drag.x = Math.max(0, this.drag.x - dx);
 
@@ -732,21 +746,39 @@
       this.panel.style.transform = `translateX(${resisted}px) scale(${1 - progress * 0.03})`;
       this.panel.style.opacity = String(1 - progress * 0.35);
 
+      // Commit the moment the gesture earns it, rather than when the events
+      // stop arriving. macOS keeps delivering momentum wheel events for a few
+      // hundred ms after the fingers lift, and every one of them pushed the
+      // decision further out — so the panel hung at the end of the swipe,
+      // already past the threshold, waiting for physics that had nothing left
+      // to say. Deciding here also means the exit inherits the speed the
+      // finger had instead of restarting from rest.
+      // Both commits require more than one event. A trackpad swipe is dozens
+      // of them; a mouse's horizontal tilt-wheel is exactly one, and a single
+      // notch arrives scaled to ~150px — enough, on its own, to clear the
+      // distance threshold and throw away a peek nobody meant to dismiss.
+      const travelled = this.drag.n > 1 && resisted > SWIPE_COMMIT_PX;
+      const flung =
+        this.drag.n > 2 && this.drag.v > SWIPE_FLING_V && resisted > SWIPE_FLING_MIN_PX;
+      if (travelled || flung) {
+        const velocity = this.drag.v;
+        clearTimeout(this._dragT);
+        this.drag = null;
+        this.panel.dataset.dragging = "0";
+        this.close({ from: "swipe", velocity });
+        return;
+      }
+
       clearTimeout(this._dragT);
-      this._dragT = setTimeout(() => this._wheelEnd(resisted), 90);
+      this._dragT = setTimeout(() => this._wheelEnd(), 90);
     }
 
-    _wheelEnd(resisted) {
+    /** Only ever the snap-back now — a committed swipe never reaches here. */
+    _wheelEnd() {
       if (!this.drag) return;
-      const fling = this.drag.v > 0.9;
-      const past = resisted > 118;
       this.drag = null;
       this.panel.dataset.dragging = "0";
 
-      if (fling || past) {
-        this.close({ from: "swipe" });
-        return;
-      }
       const S = getComputedStyle(this.root);
       const spring = S.getPropertyValue("--spring").trim() || "ease-out";
       const a = this.panel.animate(
@@ -760,6 +792,7 @@
         .then(() => {
           this.panel.style.transform = "";
           this.panel.style.opacity = "";
+          this.panel.style.willChange = "auto";
         })
         .catch(() => {});
     }
@@ -850,22 +883,35 @@
       const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
       const S = getComputedStyle(this.root);
       const easeIn = S.getPropertyValue("--ease-in").trim() || "ease-in";
+      const easeOut = S.getPropertyValue("--ease-out").trim() || "ease-out";
       const dur = reduce ? 100 : parseFloat(S.getPropertyValue("--dur-close")) || 190;
 
+      const swipe = opts.from === "swipe";
       const start = this.panel.style.transform || "none";
-      const end =
-        opts.from === "swipe"
-          ? `translateX(${Math.max(innerWidth * 0.5, 420)}px) scale(0.94)`
-          : "scale(0.975) translateY(6px)";
+      const end = swipe
+        ? `translateX(${Math.max(innerWidth * 0.5, 420)}px) scale(0.94)`
+        : "scale(0.975) translateY(6px)";
+
+      // A swipe exit continues a motion that is already underway, so it has to
+      // decelerate out of it. Easing *in* — correct for a dismissal that starts
+      // from rest — reads as the panel stalling before it finally leaves. The
+      // harder the fling, the less time it should spend in the air.
+      const easing = swipe ? easeOut : easeIn;
+      const duration = reduce
+        ? dur
+        : swipe
+          ? clamp(250 - (opts.velocity || 0) * 55, 150, 250)
+          : dur;
 
       const a = this.panel.animate(
         [
           { transform: start, opacity: Number(this.panel.style.opacity || 1) },
           { transform: end, opacity: 0 },
         ],
-        { duration: opts.from === "swipe" ? 240 : dur, easing: easeIn, fill: "forwards" }
+        { duration, easing, fill: "forwards" }
       );
-      this._animateBackdrop(false, dur, easeIn);
+      // Same clock as the panel, or the scrim lingers after the pane has gone.
+      this._animateBackdrop(false, duration, easing);
       a.finished.then(() => this._teardown()).catch(() => this._teardown());
     }
 

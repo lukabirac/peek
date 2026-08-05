@@ -1,0 +1,91 @@
+{
+  "manifest_version": 3,
+  "name": "Peek",
+  "version": "1.1.0",
+  "description": "Arc's Peek, rebuilt for Chromium. Links from pinned tabs open in a preview layer instead of stealing your tab.",
+  "minimum_chrome_version": "120",
+
+  "permissions": [
+    "tabs",
+    "storage",
+    "contextMenus",
+    "sidePanel",
+    "declarativeNetRequestWithHostAccess"
+  ],
+  "host_permissions": ["<all_urls>"],
+
+  "background": {
+    "service_worker": "src/background/service-worker.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "all_frames": false,
+      "match_about_blank": false,
+      "run_at": "document_start",
+      "js": [
+        "src/content/peek-styles.js",
+        "src/content/peek-icons.js",
+        "src/content/peek-host.js"
+      ]
+    },
+    {
+      "matches": ["<all_urls>"],
+      "all_frames": true,
+      "match_about_blank": true,
+      "run_at": "document_start",
+      "js": ["src/content/peek-child.js"]
+    },
+    {
+      "matches": ["<all_urls>"],
+      "all_frames": false,
+      "run_at": "document_start",
+      "world": "MAIN",
+      "js": ["src/content/peek-main-world.js"]
+    }
+  ],
+
+  "web_accessible_resources": [
+    {
+      "resources": ["src/rail/split-button.html", "src/rail/split-button.js"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+
+  "commands": {
+    "peek-link": {
+      "suggested_key": { "default": "Alt+Shift+P", "mac": "Alt+Shift+P" },
+      "description": "Peek the link under the cursor"
+    },
+    "promote-peek": {
+      "suggested_key": { "default": "Alt+Shift+O", "mac": "Alt+Shift+O" },
+      "description": "Open the current Peek as a tab"
+    },
+    "split-peek": {
+      "suggested_key": { "default": "Alt+Shift+S", "mac": "Alt+Shift+S" },
+      "description": "Split the current Peek beside this tab"
+    }
+  },
+
+  "action": {
+    "default_title": "Peek settings",
+    "default_icon": {
+      "16": "src/icons/icon-16.png",
+      "32": "src/icons/icon-32.png"
+    }
+  },
+
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+
+  "icons": {
+    "16": "src/icons/icon-16.png",
+    "32": "src/icons/icon-32.png",
+    "48": "src/icons/icon-48.png",
+    "128": "src/icons/icon-128.png"
+  }
+}

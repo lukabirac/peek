@@ -1,0 +1,254 @@
+/*
+ * Peek — settings.
+ *
+ * Monochrome by intent. The extension's whole job is to show somebody else's
+ * page without editorialising, and its own surfaces are held to the same rule:
+ * ink, paper, hairlines, one weight of emphasis. No hue, no gradients.
+ */
+
+:root {
+  --bg: #fafaf9;
+  --card: #ffffff;
+  --ink: #101012;
+  --on-ink: #ffffff;
+  --text: #101012;
+  --dim: #6e6e76;
+  --faint: #9a9aa2;
+  --line: rgba(16, 16, 18, 0.09);
+  --line-strong: rgba(16, 16, 18, 0.14);
+  --hover: rgba(16, 16, 18, 0.045);
+  --radius: 14px;
+  --ease: cubic-bezier(0.19, 0.91, 0.28, 1);
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a0a0b;
+    --card: #141416;
+    --ink: #f2f2f4;
+    --on-ink: #101012;
+    --text: #f2f2f4;
+    --dim: #8a8a93;
+    --faint: #64646c;
+    --line: rgba(255, 255, 255, 0.1);
+    --line-strong: rgba(255, 255, 255, 0.16);
+    --hover: rgba(255, 255, 255, 0.05);
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 64px 24px 96px;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter",
+    system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.wrap { max-width: 660px; margin: 0 auto; }
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+.head {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  padding-bottom: 26px;
+  margin-bottom: 26px;
+  border-bottom: 0.5px solid var(--line);
+}
+.mark {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 auto;
+  border-radius: 10px;
+  background: var(--ink);
+  color: var(--on-ink);
+  display: grid;
+  place-items: center;
+  box-shadow: 0 1px 2px rgba(16, 16, 18, 0.2), 0 6px 16px -8px rgba(16, 16, 18, 0.5);
+}
+.mark svg { width: 20px; height: 20px; display: block; }
+
+.titles { flex: 1 1 auto; min-width: 0; }
+h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.ver {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--faint);
+  font-variant-numeric: tabular-nums;
+}
+.sub { margin: 3px 0 0; color: var(--dim); font-size: 13px; max-width: 54ch; }
+
+/* ── Cards ──────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--card);
+  border: 0.5px solid var(--line);
+  border-radius: var(--radius);
+  padding: 4px 18px 12px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px rgba(16, 16, 18, 0.035), 0 10px 28px -20px rgba(16, 16, 18, 0.3);
+}
+.card h2 {
+  margin: 16px 0 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 14px 0;
+  border-top: 0.5px solid var(--line);
+}
+.card h2 + .row { border-top: 0; }
+.row.col { flex-direction: column; align-items: stretch; gap: 10px; }
+.txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.t { font-weight: 530; letter-spacing: -0.008em; }
+.d { color: var(--dim); font-size: 12.5px; line-height: 1.5; max-width: 56ch; }
+code {
+  font: 500 11.5px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  background: var(--hover);
+  padding: 2px 5px;
+  border-radius: 4px;
+  color: var(--text);
+}
+
+/* ── Controls ───────────────────────────────────────────────────────────── */
+.switch {
+  appearance: none;
+  margin: 0;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 24px;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+  position: relative;
+  cursor: pointer;
+  transition: background-color 200ms var(--ease), box-shadow 200ms var(--ease);
+}
+.switch::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--line-strong);
+  transition: transform 240ms var(--ease), background-color 200ms var(--ease),
+    box-shadow 200ms var(--ease);
+}
+.switch:checked {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
+}
+.switch:checked::after {
+  transform: translateX(16px);
+  background: var(--on-ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+.switch:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+.select {
+  appearance: none;
+  flex: 0 0 auto;
+  padding: 7px 30px 7px 11px;
+  border-radius: 8px;
+  border: 0.5px solid var(--line-strong);
+  background: transparent
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='none' stroke='%239a9aa2' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M3 4.8 6 7.8l3-3'/></svg>")
+    no-repeat right 9px center;
+  color: var(--text);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color 120ms linear, background-color 120ms linear;
+}
+.select:hover { background-color: var(--hover); }
+.select:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+
+.area {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 0.5px solid var(--line-strong);
+  background: transparent;
+  color: var(--text);
+  font: 400 12.5px/1.7 ui-monospace, "SF Mono", Menlo, monospace;
+  resize: vertical;
+}
+.area::placeholder { color: var(--faint); }
+.area:focus-visible { outline: 1.5px solid var(--ink); outline-offset: -1px; border-color: transparent; }
+
+/* ── Shortcuts ──────────────────────────────────────────────────────────── */
+.keys { list-style: none; margin: 8px 0 0; padding: 0; }
+.keys li {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 0;
+  border-top: 0.5px solid var(--line);
+  font-size: 13px;
+}
+.keys li:first-child { border-top: 0; }
+.keys span { margin-left: 12px; color: var(--dim); font-size: 12.5px; }
+kbd {
+  display: inline-grid;
+  place-items: center;
+  min-width: 21px;
+  height: 21px;
+  padding: 0 6px;
+  border-radius: 5px;
+  border: 0.5px solid var(--line-strong);
+  background: var(--hover);
+  font: 500 11px/1 -apple-system, system-ui, sans-serif;
+  color: var(--text);
+}
+
+.body { margin: 10px 0 0; font-size: 12.5px; line-height: 1.65; max-width: 62ch; color: var(--dim); }
+.body strong { color: var(--text); font-weight: 560; }
+.note { margin: 12px 0 0; font-size: 12px; color: var(--faint); line-height: 1.6; }
+
+/* ── Footer ─────────────────────────────────────────────────────────────── */
+.foot { display: flex; align-items: center; gap: 14px; padding: 6px 2px; }
+.status {
+  font-size: 12.5px;
+  color: var(--dim);
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 160ms linear, transform 160ms var(--ease);
+}
+.status[data-on="1"] { opacity: 1; transform: none; }
+.ghost {
+  margin-left: auto;
+  padding: 7px 13px;
+  border-radius: 8px;
+  border: 0.5px solid var(--line-strong);
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: background-color 120ms linear, color 120ms linear;
+}
+.ghost:hover { background: var(--hover); color: var(--text); }
+.ghost:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }

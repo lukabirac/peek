@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#c2410c" />
+    <title>Peek — test fixture</title>
+    <style>
+      :root { color-scheme: light dark; }
+      body {
+        margin: 0; padding: 56px 40px; min-height: 100vh;
+        font: 400 15px/1.55 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+        background: #fbfbfc; color: #18181b;
+      }
+      @media (prefers-color-scheme: dark) { body { background: #0f0f11; color: #ededf0; } }
+      h1 { font-size: 22px; font-weight: 640; letter-spacing: -0.02em; margin: 0 0 6px; }
+      .sub { color: #77777f; margin: 0 0 34px; font-size: 14px; }
+      .grid { display: grid; gap: 12px; max-width: 720px; }
+      a.t, button.t {
+        display: block; width: 100%; text-align: left;
+        padding: 16px 18px; border-radius: 11px;
+        border: 1px solid rgba(128,128,140,0.28); background: rgba(128,128,140,0.06);
+        color: inherit; font: inherit; text-decoration: none; cursor: pointer;
+      }
+      a.t:hover, button.t:hover { background: rgba(128,128,140,0.13); }
+      .k { display: block; font-weight: 600; letter-spacing: -0.01em; margin-bottom: 3px; }
+      .d { display: block; font-size: 13px; color: #77777f; }
+      code { font: 500 12.5px ui-monospace, "SF Mono", Menlo, monospace; }
+    </style>
+  </head>
+  <body>
+    <h1>Peek test fixture</h1>
+    <p class="sub">
+      Pin this tab, then click a link. Unpinned, Shift-click still peeks.
+    </p>
+
+    <div class="grid">
+      <a class="t" id="a-frameable" href="https://en.wikipedia.org/wiki/Web_browser">
+        <span class="k">Frameable site — Wikipedia</span>
+        <span class="d">No framing headers. Should peek straight in.</span>
+      </a>
+
+      <a class="t" id="a-denied" href="https://github.com/features/copilot">
+        <span class="k">Framing denied — GitHub</span>
+        <span class="d">Sends <code>x-frame-options: deny</code>. Only loads if the header rule is working.</span>
+      </a>
+
+      <a class="t" id="a-blank" href="https://developer.mozilla.org/en-US/docs/Web/API/Window/open" target="_blank" rel="noopener">
+        <span class="k">target="_blank"</span>
+        <span class="d">Would normally open a tab.</span>
+      </a>
+
+      <button class="t" id="b-open" type="button">
+        <span class="k">window.open()</span>
+        <span class="d">Feature-less call — should be captured by the main-world shim.</span>
+      </button>
+
+      <a class="t" id="a-hash" href="#somewhere">
+        <span class="k">Same-page anchor</span>
+        <span class="d">Must <em>not</em> peek.</span>
+      </a>
+
+      <a class="t" id="a-dl" href="https://example.com/file.zip" download>
+        <span class="k">Download link</span>
+        <span class="d">Must <em>not</em> peek.</span>
+      </a>
+    </div>
+
+    <script>
+      document.getElementById("b-open").addEventListener("click", () => {
+        window.open("https://en.wikipedia.org/wiki/Hypertext", "_blank");
+      });
+    </script>
+  </body>
+</html>

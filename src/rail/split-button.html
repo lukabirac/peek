@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Split</title>
+    <style>
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: transparent;
+        overflow: hidden;
+      }
+      button {
+        all: unset;
+        box-sizing: border-box;
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        cursor: default;
+        background: var(--bg);
+        color: var(--fg);
+        box-shadow: var(--shadow), inset 0 0 0 0.5px var(--ring);
+        backdrop-filter: blur(12px) saturate(150%);
+        -webkit-backdrop-filter: blur(12px) saturate(150%);
+        transition: background-color 120ms linear, transform 140ms cubic-bezier(0.19, 0.91, 0.28, 1);
+      }
+      button:hover { background: var(--bg-hover); transform: scale(1.07); }
+      button:active { transform: scale(0.94); }
+      svg { width: 15px; height: 15px; display: block; }
+
+      /* Neutral, matching .orb in peek-styles.js. No colour of its own —
+         the peek's chrome is monochrome by design. */
+      :root {
+        --bg: rgba(255, 255, 255, 0.92);
+        --bg-hover: #ffffff;
+        --fg: #232326;
+        --ring: rgba(16, 16, 18, 0.09);
+        --shadow: 0 1px 2px rgba(16, 16, 18, 0.14), 0 4px 12px -3px rgba(16, 16, 18, 0.22);
+      }
+      :root[data-scheme="dark"] {
+        --bg: rgba(38, 38, 42, 0.92);
+        --bg-hover: #34343a;
+        --fg: #ededf0;
+        --ring: rgba(255, 255, 255, 0.11);
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.36), 0 4px 12px -3px rgba(0, 0, 0, 0.44);
+      }
+      :root[data-reduced="1"] button {
+        backdrop-filter: none;
+        -webkit-backdrop-filter: none;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        button:hover, button:active { transform: none; }
+      }
+    </style>
+  </head>
+  <body>
+    <script src="split-button.js"></script>
+  </body>
+</html>

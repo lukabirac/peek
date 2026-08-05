@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Peek — Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="wrap">
+      <header class="head">
+        <div class="mark" aria-hidden="true">
+          <svg viewBox="0 0 20 20" fill="none">
+            <rect x="7.1" y="3.1" width="9.8" height="7.8" rx="2.2"
+                  stroke="currentColor" stroke-width="1.5" opacity=".55" />
+            <rect x="2.2" y="7.2" width="12.6" height="10.6" rx="2.8"
+                  fill="var(--ink)" stroke="var(--ink)" stroke-width="2.6" />
+            <rect x="3.1" y="8.1" width="10.8" height="8.8" rx="2.3" fill="currentColor" />
+          </svg>
+        </div>
+        <div class="titles">
+          <h1>Peek <span class="ver" id="ver"></span></h1>
+          <p class="sub">
+            Links open in a preview layer instead of taking over your tab.
+            Close it and nothing changed; promote it and it becomes a real tab.
+          </p>
+        </div>
+      </header>
+
+      <section class="card">
+        <h2>Triggers</h2>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Enable Peek</span>
+            <span class="d">Master switch. Off means links behave exactly as Chromium ships them.</span>
+          </div>
+          <input type="checkbox" data-key="enabled" class="switch" />
+        </label>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Peek links from pinned tabs</span>
+            <span class="d">
+              The original Arc behaviour. Pinned tabs are the Chromium
+              equivalent of Arc's pinned tabs and Favorites, so a click there
+              never navigates the tab away.
+            </span>
+          </div>
+          <input type="checkbox" data-key="onPinnedTabs" class="switch" />
+        </label>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Peek links that would open a new tab</span>
+            <span class="d">
+              Covers <code>target="_blank"</code> and <code>window.open()</code>.
+              Sized popups — sign-in and payment windows — are left alone.
+            </span>
+          </div>
+          <input type="checkbox" data-key="peekNewTabLinks" class="switch" />
+        </label>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Peek any link with a modifier</span>
+            <span class="d">Works on every page, pinned or not.</span>
+          </div>
+          <select data-key="modifier" class="select">
+            <option value="shift">Shift-click</option>
+            <option value="alt">Option-click</option>
+            <option value="none">Off</option>
+          </select>
+        </label>
+
+        <div class="row col">
+          <div class="txt">
+            <span class="t">Always peek links on these sites</span>
+            <span class="d">
+              One hostname per line. Subdomains are included. Treats the site
+              like a pinned tab even when it isn't one.
+            </span>
+          </div>
+          <textarea
+            data-key="allowlist"
+            class="area"
+            rows="4"
+            spellcheck="false"
+            placeholder="news.ycombinator.com&#10;reddit.com"
+          ></textarea>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Split</h2>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Where a split opens</span>
+            <span class="d">
+              The split button sends the peeked page alongside the tab it came
+              from. Chromium's own side panel keeps both in one window; the
+              two-window mode halves this window and puts the page in a new one
+              beside it.
+            </span>
+          </div>
+          <select data-key="splitMode" class="select">
+            <option value="sidePanel">Side panel — one window</option>
+            <option value="window">Two tiled windows</option>
+          </select>
+        </label>
+
+        <div class="row col">
+          <p class="body" style="margin: 0">
+            Aside and recent Chromium both ship a real side-by-side split, but
+            no extension can start one: <code>splitViewId</code> is exposed
+            read-only, and the calls that create a split live in private
+            namespaces reserved for the browser's own components. The side panel
+            is the closest surface an extension is actually allowed to use.
+          </p>
+          <p class="body" style="margin: 0">
+            One consequence worth knowing: the panel can't relax framing headers
+            the way a Peek can, because those rules don't apply to requests an
+            extension page starts. A site that refuses to be framed will offer
+            you a tab instead of loading there.
+          </p>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Feel</h2>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Warm pages on mouse-down</span>
+            <span class="d">
+              Starts loading the moment you press, not when you release. Buys
+              roughly a tenth of a second, which is most of the open animation.
+            </span>
+          </div>
+          <input type="checkbox" data-key="prefetch" class="switch" />
+        </label>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Swipe right to dismiss</span>
+            <span class="d">Two-finger swipe, with rubber-banding and a fling threshold.</span>
+          </div>
+          <input type="checkbox" data-key="dismissOnSwipe" class="switch" />
+        </label>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Reduce effects</span>
+            <span class="d">Drops the backdrop blur. Worth it on integrated graphics.</span>
+          </div>
+          <input type="checkbox" data-key="reducedEffects" class="switch" />
+        </label>
+      </section>
+
+      <section class="card">
+        <h2>Shortcuts</h2>
+        <ul class="keys">
+          <li><kbd>Esc</kbd><span>Dismiss the Peek</span></li>
+          <li><kbd>⌘</kbd><kbd>↩</kbd><span>Open as a tab</span></li>
+          <li><kbd>⌘</kbd><kbd>[</kbd><span>Back — dismisses at the first page</span></li>
+          <li><kbd>⌘</kbd><kbd>]</kbd><span>Forward</span></li>
+          <li><kbd>⌘</kbd><kbd>⇧</kbd><kbd>C</kbd><span>Copy the link</span></li>
+          <li><kbd>⌘</kbd><kbd>click</kbd><span>Escape the Peek into a real tab</span></li>
+          <li><kbd>⌥</kbd><kbd>⇧</kbd><kbd>P</kbd><span>Peek the link under the cursor</span></li>
+          <li><kbd>⌥</kbd><kbd>⇧</kbd><kbd>O</kbd><span>Open the current Peek as a tab</span></li>
+          <li><kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd><span>Split the current Peek beside this tab</span></li>
+        </ul>
+        <p class="note" id="shortcutNote"></p>
+      </section>
+
+      <section class="card">
+        <h2>How sites get embedded</h2>
+        <p class="body">
+          Many sites send <code>X-Frame-Options</code> or a CSP
+          <code>frame-ancestors</code> rule to stop themselves being framed.
+          Peek suspends those headers so the preview can load — but
+          <strong>only on the one tab holding the Peek</strong>, only for the
+          frame itself, and only from the moment you press the link until the
+          Peek closes. Nothing is relaxed globally or persistently.
+        </p>
+        <p class="body">
+          The header API can drop a header but not rewrite one, so the site's
+          whole Content-Security-Policy is suspended for that window rather than
+          just its framing clause. That is the one real security trade-off in
+          this extension, and it is why the arming window is kept as short as it is.
+        </p>
+      </section>
+
+      <footer class="foot">
+        <span id="status" class="status" role="status"></span>
+        <button id="reset" class="ghost" type="button">Reset to defaults</button>
+      </footer>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>

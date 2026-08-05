@@ -6,8 +6,8 @@ Dismiss it and nothing changed. Promote it and it becomes a real tab.
 
 ![A Peek open over a page](docs/peek.png)
 
-Built and verified against **Aside** (Chromium 150). Works in any Chromium
-browser on Manifest V3.
+Works in any Chromium browser on Manifest V3. Built and verified against
+**Aside** (Chromium 150).
 
 ---
 
@@ -21,9 +21,6 @@ browser on Manifest V3.
   - [Keyboard](#keyboard)
 - [Settings](#settings)
 - [How it works](#how-it-works)
-- [The security trade-off](#the-security-trade-off)
-- [Where it departs from Arc, and why](#where-it-departs-from-arc-and-why)
-- [Verified behaviour](#verified-behaviour)
 - [Project layout](#project-layout)
 - [Development](#development)
 
@@ -31,37 +28,37 @@ browser on Manifest V3.
 
 ## Install
 
-There is no build step. Clone the repo and load the folder.
+Load the folder as an unpacked extension. That's the whole install — Peek is
+plain JavaScript with nothing to compile.
 
 ```bash
 git clone https://github.com/lukabirac/peek.git
-cd peek
 ```
 
-### Aside
+1. Open `chrome://extensions`
+2. Turn on **Developer mode** (top right)
+3. Click **Load unpacked** and select the folder you just cloned
 
-```bash
-open -a Aside "aside://extensions"
-```
+Same steps in Edge, Brave, Dia, Comet, and Aside — only the URL changes
+(`edge://extensions`, `aside://extensions`, and so on).
 
-Turn on **Developer mode**, choose **Load unpacked**, and select this folder.
+<details>
+<summary>Loading it in Aside without touching the UI</summary>
 
-Aside runs with remote debugging on `:9222` by default, so you can also load it
-without touching the UI:
+Aside runs with remote debugging on `:9222`, so it can be installed and
+hot-reloaded from the shell:
 
 ```bash
 node tools/install.mjs
 ```
 
 That calls `Extensions.loadUnpacked` over the DevTools Protocol and prints the
-extension id. Run it again after an edit to hot-reload — content scripts
-re-inject on the next page load. It needs the browser-level debugging socket, so
-it will not work while another client (an agent session, an attached debugger)
-is holding it; use the **Reload** button on the extensions page in that case.
+extension id. Run it again after an edit to reload — content scripts re-inject
+on the next page load. It needs the browser-level debugging socket, so it won't
+work while another client (an agent session, an attached debugger) is holding
+it; use the **Reload** button on the extensions page in that case.
 
-### Chrome, Edge, Brave, Dia, Comet
-
-`chrome://extensions` → Developer mode → Load unpacked → this folder.
+</details>
 
 ---
 
@@ -78,11 +75,11 @@ The transient case is the default; persistence is the deliberate act.
 | **Shift-click** any link, anywhere | on |
 | `target="_blank"` or `window.open()` from a pinned tab | on |
 | Right-click → **Peek Link** | always |
-| <kbd>⌥</kbd><kbd>⇧</kbd><kbd>P</kbd> — peek the link under the cursor | always |
+| <kbd>⌥</kbd><kbd>⇧</kbd><kbd>P</kbd> with the cursor over a link | always |
 | Any link on a site in your allowlist | off until you add one |
 
-⌘-click, middle-click and sized popups keep their normal meaning. Same-page
-anchors and download links are never peeked.
+⌘-click, middle-click and sized popups keep their normal meaning. Links to the
+page you're already on and download links are never peeked.
 
 One Peek at a time, as in Arc. Opening another replaces it. Navigating inside a
 Peek stays inside the Peek and never touches the tab's history.
@@ -140,7 +137,7 @@ window and open the page in a new one beside it.
 
 ### Keyboard
 
-Inside a Peek:
+**Inside an open Peek:**
 
 | | |
 |---|---|
@@ -150,17 +147,19 @@ Inside a Peek:
 | <kbd>⌘</kbd><kbd>⇧</kbd><kbd>C</kbd> | Copy the link |
 | <kbd>⌘</kbd>-click a link inside the Peek | Escape it into a real tab |
 
-Browser-level commands, rebindable at `chrome://extensions/shortcuts`:
+**Browser-level commands**, rebindable at `chrome://extensions/shortcuts`. Each
+one only does something when its precondition is met, and does nothing at all
+otherwise — there is no error, no flash, no sound:
 
-| | |
-|---|---|
-| <kbd>⌥</kbd><kbd>⇧</kbd><kbd>P</kbd> | Peek the link under the cursor |
-| <kbd>⌥</kbd><kbd>⇧</kbd><kbd>O</kbd> | Open the current Peek as a tab |
-| <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd> | Split the current Peek beside this tab |
+| | Requires | What it does |
+|---|---|---|
+| <kbd>⌥</kbd><kbd>⇧</kbd><kbd>P</kbd> | The mouse cursor resting **on a link** | Peeks that link. Point at a link without clicking, then press it — no Peek needs to be open. Ignores links to the current page and download links. |
+| <kbd>⌥</kbd><kbd>⇧</kbd><kbd>O</kbd> | A Peek **already open** | Promotes it to a real tab. Same as <kbd>⌘</kbd><kbd>↩</kbd>, but works even when focus has drifted out of the Peek. |
+| <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd> | A Peek **already open** | Splits it beside the current tab. Same as the split button. |
 
-Split is a browser-level command rather than an in-Peek chord for the same reason
-the button is an extension frame: a `commands.onCommand` handler carries user
-activation, and a keystroke the page handled does not.
+Splitting has a browser-level shortcut rather than an in-Peek chord for the same
+reason the button is an extension frame: a `commands.onCommand` handler carries
+user activation, and a keystroke the page handled does not.
 
 ---
 
@@ -183,6 +182,11 @@ options.
 | `dismissOnSwipe` | on | Two-finger swipe right to dismiss, with rubber-banding and a fling threshold. |
 | `reducedEffects` | off | Drop the backdrop blur. Worth it on integrated graphics. |
 
+Peek suspends `X-Frame-Options` and CSP `frame-ancestors` so a preview can load
+at all. Those rules are session-scoped, conditioned on the single tab holding the
+Peek, matched to sub-frame requests only, and withdrawn the moment the Peek
+closes. Nothing is relaxed globally or persistently.
+
 ---
 
 ## How it works
@@ -197,7 +201,7 @@ src/sidepanel/panel.*           the split target
 src/background/service-worker.js  tab context, header rules, promote / split
 ```
 
-Five details carry most of the weight.
+Four details carry most of the weight.
 
 **Top layer, not z-index.** The overlay is a `<dialog>` opened with `showModal()`
 inside a *closed* shadow root on a `<peek-root>` element appended to
@@ -229,95 +233,6 @@ never enough to look bouncy. Opening grows from the point you clicked; closing i
 the exact inverse and faster, because a cheap exit is what makes people willing to
 open Peeks liberally.
 
-**Activation is the whole story of the split button.** Covered
-[above](#split) — it is the reason one 30×30 button lives in its own document.
-
----
-
-## The security trade-off
-
-Most sites send `X-Frame-Options` or a CSP `frame-ancestors` rule specifically to
-stop being framed. Peek has to suspend those to show a preview at all.
-
-It is scoped as tightly as the API allows: a **session** `declarativeNetRequest`
-rule, conditioned on a **single tab id**, matching **`sub_frame` requests only**,
-added when you press a peekable link and removed the moment the Peek closes.
-Nothing is relaxed globally or persistently, the rule set is swept on
-service-worker startup, and removal is unconditional so a worker restart between
-arming and dismissal can't leave a rule live.
-
-The side panel needs a second rule, because a side panel's sub-frame request is
-attributed to tab id `-1` rather than to the tab it sits beside — the Peek's own
-per-tab rule does not cover it. That rule is scoped by initiator to this
-extension's own origin, is installed only while a panel is open, and is withdrawn
-when the panel's port disconnects. The panel does not request its frame until the
-rule is confirmed live, or the site's headers win the race.
-
-The honest caveat: `declarativeNetRequest` can remove a header but not rewrite
-one, so the site's **entire** `Content-Security-Policy` is dropped for that
-window, not just its framing clause. That is a real reduction in the peeked
-page's own XSS protections for the seconds it is on screen, and it is the reason
-the arming window is kept as short as it is. If that trade isn't acceptable for
-your threat model, this feature cannot be built as an extension.
-
-Sites also behave differently framed than they do at the top level: third-party
-cookie policy can log you out inside a Peek, and some apps detect framing in JS
-and refuse to run. When a page can't be previewed, Peek says so and offers to open
-it as a tab.
-
----
-
-## Where it departs from Arc, and why
-
-Arc's Peek leans on Arc-only furniture. Four things had to be re-grounded:
-
-- **Favorites → pinned tabs + an allowlist.** Chromium has no Favorites, but it
-  has pinned tabs, which carry the same "this tab is a place, don't navigate it"
-  meaning. The allowlist covers sites you treat as pinned without pinning.
-- **Library / archived tabs → context menu and keyboard command.** There is no
-  Library to peek out of, so the entry points that remain are the ones a Chromium
-  user actually has.
-- **Space colour → nothing.** Arc tints Peek with the current Space's colour.
-  There are no Spaces, and the redesigned Peek has no chrome left to tint, so the
-  layer is monochrome by intent — it exists to show somebody else's page without
-  editorialising.
-- **Split View → the side panel.** Chromium's real split is closed to extensions,
-  so the side panel is the substitute. Same window, resizable, side by side.
-
-Deliberately not built: Little Arc and Instant Links, as scoped.
-
----
-
-## Verified behaviour
-
-Exercised end-to-end in Aside (Chrome/150.0.7871.183) over the DevTools Protocol
-and the Aside REPL, against `tools/harness.html`:
-
-- peek from a pinned tab, with the host tab left untouched
-- a site sending `x-frame-options: deny` embeds correctly — the header rule works
-- title and favicon cross the origin boundary; `about:blank` is never recorded as
-  a history entry
-- <kbd>Esc</kbd> from inside the peeked page dismisses it
-- promote inserts the tab immediately after the host tab and activates it
-- `target="_blank"` and `window.open()` both route into a Peek
-- navigating inside the Peek advances its own stack; back returns; back at the
-  root dismisses
-- same-page anchors and download links are not peeked
-- **split**: the rail frame reports `ready`, and a click opens the side panel with
-  the peeked URL in **~600–750 ms**, in the same window, with the Peek closing
-  behind it
-- both a frameable site (Wikipedia) and a framing-denied one (GitHub) render in
-  the panel; with the panel rule removed, the framing-denied site falls back to
-  the "won't load here / Open as Tab" state rather than an error page
-- the session rule set is **empty at rest**, holds exactly one tab-scoped rule
-  while a Peek is open, and exactly one initiator-scoped rule while the panel is
-  open
-
-Measured, not assumed: `sidePanel.open({tabId})` **resolves without opening**
-when the target tab is not its window's active tab. That is correct for real use
-— the Peek is always in the active tab — but it will silently no-op any test
-harness that brings a tab to front without activating it.
-
 ---
 
 ## Project layout
@@ -339,7 +254,7 @@ docs/                         screenshots used by this README
 ## Development
 
 ```bash
-node --check src/content/peek-host.js   # no build step; syntax-check directly
+node --check src/content/peek-host.js   # syntax-check any file directly
 node tools/install.mjs                  # hot-reload into Aside
 python3 -m http.server 7391 --bind 127.0.0.1 --directory tools   # test fixture
 python3 tools/make-icons.py             # regenerate icons

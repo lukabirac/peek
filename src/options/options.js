@@ -75,9 +75,9 @@ document.getElementById("reset").addEventListener("click", async () => {
   const base = location.protocol.startsWith("http") ? "chrome" : scheme || "chrome";
   note.textContent =
     `The three ⌥⇧ chords are browser-level commands — rebind them at ` +
-    `${base}://extensions/shortcuts. Splitting is one of them because opening ` +
-    `the side panel needs a keystroke the browser itself handed us; everything ` +
-    `else is handled inside the Peek and is fixed.`;
+    `${base}://extensions/shortcuts. Each does nothing, silently, until its ` +
+    `condition is met: a link under the cursor, or a Peek already open. ` +
+    `Everything above them is handled inside the Peek and is fixed.`;
 
   document.getElementById("ver").textContent = chrome.runtime.getManifest().version;
 })();

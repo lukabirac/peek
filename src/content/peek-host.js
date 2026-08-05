@@ -92,12 +92,19 @@
     }
   }
 
+  /**
+   * Does this URL point at the document we're already looking at?
+   *
+   * The fragment is deliberately not part of the test. `href="#"` — the usual
+   * markup for a JS-driven button — parses to an empty hash, so keying on
+   * "has a fragment" lets exactly the most common case through, and peeking
+   * the page you are standing on is never what anyone wanted.
+   */
   function isSamePageAnchor(url) {
     return (
       url.origin === location.origin &&
       url.pathname === location.pathname &&
-      url.search === location.search &&
-      url.hash !== ""
+      url.search === location.search
     );
   }
 
@@ -1049,9 +1056,15 @@
   function hoveredLink() {
     const el = lastHover || document.activeElement?.closest?.("a[href]");
     if (!el) return null;
+    if (el.hasAttribute?.("download")) return null;
     const href = el instanceof SVGAElement ? el.href.baseVal : el.href;
     const u = parseURL(href);
-    return u && PEEKABLE.test(u.protocol) ? u.href : null;
+    if (!u || !PEEKABLE.test(u.protocol)) return null;
+    // The keyboard trigger bypasses resolveTrigger, so the exclusions a click
+    // gets for free have to be restated. Without this, ⌥⇧P over a table-of-
+    // contents link peeks the page you are already looking at.
+    if (isSamePageAnchor(u)) return null;
+    return u.href;
   }
 
   window.addEventListener("pagehide", () => {

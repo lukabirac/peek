@@ -28,7 +28,7 @@
     peekNewTabLinks: true, // target=_blank / window.open from eligible tabs
     prefetch: true, // warm the document on pointerdown
     allowlist: [], // extra hosts treated like a pinned tab
-    blocklist: [], // hosts Peek never touches, from either end
+    blocklist: [], // hosts that never peek automatically, from either end
     reducedEffects: false, // drop backdrop blur on weak GPUs
     dismissOnSwipe: true,
     swipeDirection: "right", // 'right' | 'left' — which way you swipe, and go
@@ -133,11 +133,14 @@
   }
 
   /**
-   * The blocklist beats everything else — the allowlist, the pin, the
-   * modifier. It is checked from both ends, because "never peek this site" is
-   * only true if it holds whether the site is doing the linking or being
-   * linked to: on a blocked page nothing peeks, and a link to a blocked host
-   * never peeks from anywhere.
+   * The blocklist governs the triggers that fire on their own — a click in a
+   * pinned tab, an allowlisted site, a _blank link. It does not override you:
+   * a modifier-click, the context menu and ⌥⇧P still peek, because each of
+   * those is you asking for one specific link on purpose.
+   *
+   * Within that scope it counts from both ends. On a blocked page nothing
+   * peeks by itself, and a link to a blocked host is never picked up
+   * automatically from anywhere else.
    */
   function hostBlocked(hostname) {
     return hostInList(settings.blocklist, hostname);
@@ -185,7 +188,6 @@
    */
   function resolveTrigger(event) {
     if (!settings.enabled || !ctxReady) return null;
-    if (pageBlocked()) return null;
     if (event.defaultPrevented) return null;
     if (event.button !== 0) return null;
 
@@ -199,15 +201,15 @@
     const url = parseURL(a instanceof SVGAElement ? a.href.baseVal : a.href);
     if (!url || !PEEKABLE.test(url.protocol)) return null;
     if (isSamePageAnchor(url)) return null;
-    // Ahead of the modifier branch: a blocked destination is blocked however
-    // deliberately you clicked it.
-    if (hostBlocked(url.hostname)) return null;
 
+    // Held a modifier: you asked for this one, so the blocklist stays out of
+    // it. Everything past this point is Peek deciding on its own.
     const byModifier = modifierHeld(event);
     if (byModifier) return url.href;
 
     if (isBrowserChord(event)) return null; // ⌘-click still means new tab
-    if (!tabIsPeekContext()) return null;
+    if (hostBlocked(url.hostname)) return null;
+    if (!tabIsPeekContext()) return null; // also false on a blocked page
 
     // In a peek context, a _blank link is exactly the case Peek exists for.
     if (a.target && a.target !== "_self" && !settings.peekNewTabLinks) return null;
@@ -1148,21 +1150,14 @@
           ctxPinned = !!msg.pinned;
           publishEligibility();
           break;
-        // The single funnel for the context menu and ⌥⇧P. The worker screens
-        // these too, so a blocked link never gets this far in practice — this
-        // is the guarantee that no caller can route around the blocklist.
-        case "peek:open": {
-          if (!msg.url) break;
-          const u = parseURL(msg.url);
-          if (pageBlocked() || (u && hostBlocked(u.hostname))) {
-            reply?.({ blocked: true });
-            return true;
+        // The context menu and ⌥⇧P land here. Both are explicit, so neither
+        // consults the blocklist.
+        case "peek:open":
+          if (msg.url) {
+            ensureArmed();
+            openPeek(msg.url, lastPointer);
           }
-          ensureArmed();
-          openPeek(msg.url, lastPointer);
-          reply?.({ blocked: false });
-          return true;
-        }
+          break;
         case "peek:promote-current":
           current?.promote();
           break;
@@ -1206,7 +1201,6 @@
     // gets for free have to be restated. Without this, ⌥⇧P over a table-of-
     // contents link peeks the page you are already looking at.
     if (isSamePageAnchor(u)) return null;
-    if (pageBlocked() || hostBlocked(u.hostname)) return null;
     return u.href;
   }
 

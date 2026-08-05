@@ -129,6 +129,9 @@ h1 {
 .d { color: var(--dim); font-size: 12.5px; line-height: 1.5; max-width: 56ch; }
 .d strong { color: var(--text); font-weight: 560; }
 .d em { color: var(--text); font-style: italic; }
+/* The shared kbd is sized for the shortcuts list; inline in body copy it needs
+   to sit on the line rather than push it apart. */
+.d kbd { height: 17px; min-width: 17px; padding: 0 4px; font-size: 10px; border-radius: 4px; }
 code {
   font: 500 11.5px/1 var(--font-mono);
   background: var(--hover);

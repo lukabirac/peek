@@ -81,13 +81,15 @@ The transient case is the default; persistence is the deliberate act.
 ⌘-click, middle-click and sized popups keep their normal meaning. Links to the
 page you're already on and download links are never peeked.
 
-Anything on the **blocklist** is exempt from all of it. That list wins over the
-allowlist, over a pinned tab and over the modifier, and it counts from both
-ends: while you are on a blocked site nothing peeks, and a link *to* one never
-peeks from anywhere else. Both explicit commands respect it too — ⌥⇧P does
-nothing over a blocked link, and right-click → **Peek Link** opens it as an
-ordinary tab rather than swallowing the click. Banks, sign-in flows and
-anything that misbehaves in a frame belong here.
+The **blocklist** switches off the triggers that fire on their own — a pinned
+tab, the allowlist, a `_blank` link — for the sites on it. It counts from both
+ends: nothing peeks by itself while you are on a blocked site, and a link *to*
+one is never picked up automatically from anywhere else.
+
+It is not a lock. Shift-click, ⌥⇧P and right-click → **Peek Link** still peek a
+blocked site, because each of those is you asking for one specific link on
+purpose. The list is there so Peek stops guessing on sites where guessing is
+unwelcome, not to take the choice away from you.
 
 One Peek at a time, as in Arc. Opening another replaces it. Navigating inside a
 Peek stays inside the Peek and never touches the tab's history.
@@ -190,7 +192,7 @@ options.
 | `peekNewTabLinks` | on | Route `target="_blank"` and `window.open()` into a Peek. Sized popups — sign-in, payment — are left alone. |
 | `modifier` | `shift` | Modifier that peeks any link on any page. `shift` \| `alt` \| `none`. |
 | `allowlist` | `[]` | Hostnames treated like a pinned tab. Subdomains included. |
-| `blocklist` | `[]` | Hostnames Peek never touches, from either end. Beats everything else. Subdomains included. |
+| `blocklist` | `[]` | Hostnames that never peek automatically, from either end. Modifier-click and the explicit commands still work. Subdomains included. |
 | `splitMode` | `sidePanel` | `sidePanel` (one window) or `window` (two tiled windows). |
 | `prefetch` | on | Start loading on pointer-down rather than click. |
 | `dismissOnSwipe` | on | Two-finger swipe to dismiss. Rubber-banded, with a fling threshold. |

@@ -30,43 +30,9 @@ async function getSettings() {
   return { ...DEFAULTS, ...(settings || {}) };
 }
 
-/**
- * Blocklist matching, mirroring hostInList in peek-host.js. It is duplicated
- * rather than shared because a content script can't be an ES module and the
- * worker can't be anything else; eight lines is cheaper than a shim that has
- * to be valid as both.
- *
- * The worker needs its own copy so the context menu can screen a link before
- * arm() runs — checking after would mean suspending a site's CSP for a peek
- * that is then refused.
- */
-function hostInList(list, hostname) {
-  if (!list || !list.length) return false;
-  const h = String(hostname || "").replace(/^www\./, "").toLowerCase();
-  if (!h) return false;
-  return list.some((raw) => {
-    const p = String(raw).trim().replace(/^www\./, "").toLowerCase();
-    if (!p) return false;
-    return h === p || h.endsWith("." + p);
-  });
-}
-
-function hostOf(url) {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return "";
-  }
-}
-
-/** Blocked from either end: the page holding the link, or the link's target. */
-async function peekRefused(pageUrl, linkUrl) {
-  const { blocklist } = await getSettings();
-  if (!blocklist || !blocklist.length) return false;
-  return (
-    hostInList(blocklist, hostOf(pageUrl)) || hostInList(blocklist, hostOf(linkUrl))
-  );
-}
+// The blocklist lives entirely in the content script: it only governs the
+// automatic triggers, and every one of those is decided there. Nothing the
+// worker initiates — the context menu, the ⌥⇧ commands — is automatic.
 
 chrome.runtime.onInstalled.addListener(async () => {
   const s = await getSettings();
@@ -407,13 +373,6 @@ async function tileWindows(tab, url) {
 
 chrome.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId !== "peek-link" || !tab?.id || !info.linkUrl) return;
-  // "Peek Link" is an explicit click, so swallowing it would just read as
-  // broken. A blocklisted link opens the way the link normally would instead —
-  // the one thing that never happens is a peek.
-  if (await peekRefused(tab.url, info.linkUrl)) {
-    chrome.tabs.create({ url: info.linkUrl, active: true }).catch(() => {});
-    return;
-  }
   await arm(tab.id);
   chrome.tabs.sendMessage(tab.id, { type: "peek:open", url: info.linkUrl }).catch(() => {});
 });

@@ -92,15 +92,16 @@
 
         <div class="row col">
           <div class="txt">
-            <span class="t">Never peek these sites</span>
+            <span class="t">Never peek these sites automatically</span>
             <span class="d">
-              One hostname per line, subdomains included. This wins over
-              everything else — the allowlist, a pinned tab, the modifier — and
-              counts from <strong>both ends</strong>: nothing peeks while
-              you're on the site, and links <em>to</em> it never peek from
-              anywhere else. Use it for anything that misbehaves in a frame, or
-              that you'd rather Peek never touched: banks, sign-in flows, your
-              email.
+              One hostname per line, subdomains included. Turns off the
+              triggers that fire on their own — a pinned tab, the allowlist
+              above, a <code>_blank</code> link — counting from
+              <strong>both ends</strong>: nothing peeks by itself while you're
+              on the site, and links <em>to</em> it are never picked up
+              elsewhere. Shift-click, <kbd>⌥</kbd><kbd>⇧</kbd><kbd>P</kbd> and
+              right-click → Peek Link still work, since those are you asking
+              for one link on purpose.
             </span>
           </div>
           <textarea

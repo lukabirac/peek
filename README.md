@@ -102,7 +102,9 @@ outside the pane's top-right corner.
 | **⛶** | Open as Tab — promotes the Peek to a real tab, inserted right after the current one. |
 | **▯▯** | Split with This Tab — puts the peeked page beside the tab it came from, in the same window. |
 
-Clicking the scrim, pressing <kbd>Esc</kbd>, or swiping right also dismisses.
+Clicking the scrim, pressing <kbd>Esc</kbd>, or swiping also dismisses. The
+swipe is a two-finger gesture in whichever direction your browser uses to go
+Back — a right swipe with macOS natural scrolling on, a left swipe with it off.
 Back at the first page of a Peek's own history dismisses too, rather than
 dead-ending on a disabled button.
 
@@ -179,7 +181,7 @@ options.
 | `allowlist` | `[]` | Hostnames treated like a pinned tab. Subdomains included. |
 | `splitMode` | `sidePanel` | `sidePanel` (one window) or `window` (two tiled windows). |
 | `prefetch` | on | Start loading on pointer-down rather than click. |
-| `dismissOnSwipe` | on | Two-finger swipe right to dismiss, with rubber-banding and a fling threshold. |
+| `dismissOnSwipe` | on | Two-finger swipe to dismiss, in the same direction your browser uses to go Back. Rubber-banded, with a fling threshold. |
 | `reducedEffects` | off | Drop the backdrop blur. Worth it on integrated graphics. |
 
 Peek suspends `X-Frame-Options` and CSP `frame-ancestors` so a preview can load

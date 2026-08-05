@@ -110,6 +110,10 @@ dialog {
   /* .root is pointer-events:none so the page stays live while we're priming;
      the dialog opts itself back in once it's modal. */
   pointer-events: auto;
+  /* Without this, a horizontal two-finger swipe never reaches the dismiss
+     gesture: the scroll goes unconsumed, chains out, and macOS Chromium spends
+     it on its own back-navigation instead. */
+  overscroll-behavior: none;
 }
 /* all:unset also wipes the UA rule that hides a closed dialog, so both states
    have to be stated explicitly. The panel is centred here rather than on .root
@@ -162,6 +166,7 @@ dialog::backdrop {
      composited iframe; the paint containment clips it cleanly. */
   overflow: hidden;
   contain: paint;
+  overscroll-behavior: none;
 }
 
 .frame {

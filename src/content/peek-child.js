@@ -127,6 +127,15 @@
     if (attached) return;
     attached = true;
 
+    // The swipe that dismisses a peek starts life over this document. If the
+    // page can't scroll horizontally, the browser claims the gesture for its
+    // own back-navigation and we never see a usable wheel event — so this
+    // frame opts out of overscroll entirely. Scoped to the framed instance,
+    // which is thrown away when the peek closes.
+    try {
+      document.documentElement.style.overscrollBehaviorX = "none";
+    } catch {}
+
     document.addEventListener("readystatechange", () => state());
     window.addEventListener("load", () => state(true));
     window.addEventListener("popstate", () => setTimeout(state, 0));

@@ -901,15 +901,23 @@
   /* ─── Scroll lock ───────────────────────────────────────────────────── */
 
   let savedOverflow = null;
+  let savedOverscroll = null;
   function lockScroll(on) {
     const el = document.documentElement;
     if (on) {
       if (savedOverflow !== null) return;
       savedOverflow = el.style.overflow;
+      savedOverscroll = el.style.overscrollBehaviorX;
       el.style.overflow = "hidden";
+      // A locked root can't consume a horizontal swipe, and unconsumed scroll
+      // is what macOS Chromium turns into a back-navigation gesture — which
+      // would eat the swipe-to-dismiss before it ever reaches us.
+      el.style.overscrollBehaviorX = "none";
     } else if (savedOverflow !== null) {
       el.style.overflow = savedOverflow;
+      el.style.overscrollBehaviorX = savedOverscroll || "";
       savedOverflow = null;
+      savedOverscroll = null;
     }
   }
 

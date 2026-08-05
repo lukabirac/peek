@@ -34,7 +34,7 @@ browser on Manifest V3.
 There is no build step. Clone the repo and load the folder.
 
 ```bash
-git clone https://github.com/<you>/peek.git
+git clone https://github.com/lukabirac/peek.git
 cd peek
 ```
 

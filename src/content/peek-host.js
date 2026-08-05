@@ -30,7 +30,8 @@
     allowlist: [], // extra hosts treated like a pinned tab
     reducedEffects: false, // drop backdrop blur on weak GPUs
     dismissOnSwipe: true,
-    swipeDirection: "right", // 'right' | 'left' — which way the panel is thrown
+    swipeDirection: "right", // 'right' | 'left' — which way you swipe, and go
+    naturalScrolling: true, // does a rightward swipe report a negative deltaX?
     splitMode: "sidePanel", // 'sidePanel' | 'window'
   };
 
@@ -195,16 +196,24 @@
   const SWIPE_FLING_V = 0.9;
   const SWIPE_FLING_MIN_PX = 46;
 
-  /**
-   * +1 throws the panel to the right, -1 to the left.
+  /*
+   * Two independent signs, because a swipe has two independent questions.
    *
-   * Which physical finger movement that corresponds to depends on the OS
-   * scroll direction, which no API exposes — with macOS natural scrolling on,
-   * a rightward swipe reports a negative deltaX, and with it off the same
-   * motion reports a positive one. Hence the setting: pick whichever matches
-   * your hand rather than guessing on your behalf.
+   *   dismissSign  which way you physically move your fingers to dismiss,
+   *                and therefore which way the pane is thrown, since it
+   *                should always travel with your hand and not against it.
+   *
+   *   naturalSign  the deltaX a physical *rightward* swipe actually reports.
+   *                Natural scrolling inverts it, and no API tells us which
+   *                way round the user has it — so it has to be asked.
+   *
+   * Collapsing these into one sign is what made the gesture feel wrong for
+   * anyone with natural scrolling off: whichever direction they picked, the
+   * pane ran opposite their fingers, because the deltaX they produce is the
+   * opposite of the one the single sign assumed.
    */
-  const swipeSign = () => (settings.swipeDirection === "left" ? -1 : 1);
+  const dismissSign = () => (settings.swipeDirection === "left" ? -1 : 1);
+  const naturalSign = () => (settings.naturalScrolling === false ? 1 : -1);
 
   class Peek {
     constructor() {
@@ -736,8 +745,8 @@
       if (Math.abs(dx) < Math.abs(dy) * 1.4) return; // vertical scroll wins
 
       // Distance travelled along the dismiss axis, whichever way that points.
-      const sign = swipeSign();
-      const travel = -dx * sign;
+      const dir = dismissSign();
+      const travel = dx * naturalSign() * dir;
       if (!this.drag && travel < 2) return;
 
       if (!this.drag) {
@@ -758,7 +767,7 @@
       const resisted = Math.pow(this.drag.x, 0.86) * 1.6;
       const progress = clamp(resisted / 320, 0, 1);
       this.panel.style.transform =
-        `translateX(${resisted * sign}px) scale(${1 - progress * 0.03})`;
+        `translateX(${resisted * dir}px) scale(${1 - progress * 0.03})`;
       this.panel.style.opacity = String(1 - progress * 0.35);
 
       // Commit the moment the gesture earns it, rather than when the events
@@ -904,7 +913,7 @@
       const swipe = opts.from === "swipe";
       const start = this.panel.style.transform || "none";
       const end = swipe
-        ? `translateX(${swipeSign() * Math.max(innerWidth * 0.5, 420)}px) scale(0.94)`
+        ? `translateX(${dismissSign() * Math.max(innerWidth * 0.5, 420)}px) scale(0.94)`
         : "scale(0.975) translateY(6px)";
 
       // A swipe exit continues a motion that is already underway, so it has to

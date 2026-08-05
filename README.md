@@ -103,11 +103,13 @@ outside the pane's top-right corner.
 | **▯▯** | Split with This Tab — puts the peeked page beside the tab it came from, in the same window. |
 
 Clicking the scrim, pressing <kbd>Esc</kbd>, or swiping also dismisses. The
-swipe is a two-finger gesture that throws the pane off the side of the screen;
-if it feels backwards, flip **Which way you swipe** in settings — nothing
-reports a trackpad's scroll direction, so that one is a preference rather than
-something Peek can work out. Back at the first page of a Peek's own history
-dismisses too, rather than dead-ending on a disabled button.
+swipe is a two-finger gesture that throws the pane off the side of the screen,
+always travelling with your fingers rather than against them. Two settings
+govern it, because a swipe asks two separate questions: **Natural scrolling**
+has to match your system setting, since nothing reports it to a page and
+getting it wrong inverts everything; **Which way you swipe** is then just taste.
+Back at the first page of a Peek's own history dismisses too, rather than
+dead-ending on a disabled button.
 
 ### Split
 
@@ -183,7 +185,8 @@ options.
 | `splitMode` | `sidePanel` | `sidePanel` (one window) or `window` (two tiled windows). |
 | `prefetch` | on | Start loading on pointer-down rather than click. |
 | `dismissOnSwipe` | on | Two-finger swipe to dismiss. Rubber-banded, with a fling threshold. |
-| `swipeDirection` | `right` | Which way that swipe throws the pane. `right` \| `left`. Flip it if the gesture feels backwards. |
+| `naturalScrolling` | on | Match your system's trackpad setting. It decides which way a swipe is *reported*, and no API exposes it — get it wrong and the pane runs away from your fingers. |
+| `swipeDirection` | `right` | The direction you move your fingers to dismiss. The pane always travels with them. `right` \| `left`. |
 | `reducedEffects` | off | Drop the backdrop blur. Worth it on integrated graphics. |
 
 Peek suspends `X-Frame-Options` and CSP `frame-ancestors` so a preview can load

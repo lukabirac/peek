@@ -153,16 +153,28 @@
 
         <label class="row">
           <div class="txt">
+            <span class="t">Natural scrolling</span>
+            <span class="d">
+              Match your system setting — on macOS, System Settings → Trackpad →
+              Scroll &amp; Zoom. It decides which way a swipe is reported, and
+              nothing exposes it to a page, so Peek has to be told. Get this
+              wrong and the pane runs away from your fingers instead of with them.
+            </span>
+          </div>
+          <input type="checkbox" data-key="naturalScrolling" class="switch" />
+        </label>
+
+        <label class="row">
+          <div class="txt">
             <span class="t">Which way you swipe</span>
             <span class="d">
-              Nothing reports your trackpad's scroll direction, so this is a
-              preference rather than something Peek can work out. If the gesture
-              feels backwards, pick the other one.
+              The direction you move your fingers to throw a Peek away. The pane
+              always travels with them.
             </span>
           </div>
           <select data-key="swipeDirection" class="select">
-            <option value="right">Throw it right</option>
-            <option value="left">Throw it left</option>
+            <option value="right">Swipe right</option>
+            <option value="left">Swipe left</option>
           </select>
         </label>
 

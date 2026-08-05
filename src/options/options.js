@@ -8,6 +8,7 @@ const DEFAULTS = {
   reducedEffects: false,
   dismissOnSwipe: true,
   swipeDirection: "right",
+  naturalScrolling: true,
   splitMode: "sidePanel",
 };
 

@@ -5,6 +5,7 @@ const DEFAULTS = {
   peekNewTabLinks: true,
   prefetch: true,
   allowlist: [],
+  blocklist: [],
   reducedEffects: false,
   dismissOnSwipe: true,
   swipeDirection: "right",

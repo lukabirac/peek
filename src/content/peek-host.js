@@ -28,6 +28,7 @@
     peekNewTabLinks: true, // target=_blank / window.open from eligible tabs
     prefetch: true, // warm the document on pointerdown
     allowlist: [], // extra hosts treated like a pinned tab
+    blocklist: [], // hosts Peek never touches, from either end
     reducedEffects: false, // drop backdrop blur on weak GPUs
     dismissOnSwipe: true,
     swipeDirection: "right", // 'right' | 'left' — which way you swipe, and go
@@ -111,18 +112,44 @@
     );
   }
 
-  function hostAllowlisted() {
-    if (!settings.allowlist || !settings.allowlist.length) return false;
-    const h = location.hostname.replace(/^www\./, "").toLowerCase();
-    return settings.allowlist.some((raw) => {
+  /**
+   * Is `hostname` covered by any entry in `list`? Subdomains count and a
+   * leading www. is ignored on both sides, so one entry matches the shapes a
+   * site actually serves itself under.
+   */
+  function hostInList(list, hostname) {
+    if (!list || !list.length) return false;
+    const h = String(hostname || "").replace(/^www\./, "").toLowerCase();
+    if (!h) return false;
+    return list.some((raw) => {
       const p = String(raw).trim().replace(/^www\./, "").toLowerCase();
       if (!p) return false;
       return h === p || h.endsWith("." + p);
     });
   }
 
+  function hostAllowlisted() {
+    return hostInList(settings.allowlist, location.hostname);
+  }
+
+  /**
+   * The blocklist beats everything else — the allowlist, the pin, the
+   * modifier. It is checked from both ends, because "never peek this site" is
+   * only true if it holds whether the site is doing the linking or being
+   * linked to: on a blocked page nothing peeks, and a link to a blocked host
+   * never peeks from anywhere.
+   */
+  function hostBlocked(hostname) {
+    return hostInList(settings.blocklist, hostname);
+  }
+
+  function pageBlocked() {
+    return hostBlocked(location.hostname);
+  }
+
   /** Is this tab one where a plain click should peek? (Arc: pinned tabs.) */
   function tabIsPeekContext() {
+    if (pageBlocked()) return false;
     return (settings.onPinnedTabs && ctxPinned) || hostAllowlisted();
   }
 
@@ -158,6 +185,7 @@
    */
   function resolveTrigger(event) {
     if (!settings.enabled || !ctxReady) return null;
+    if (pageBlocked()) return null;
     if (event.defaultPrevented) return null;
     if (event.button !== 0) return null;
 
@@ -171,6 +199,9 @@
     const url = parseURL(a instanceof SVGAElement ? a.href.baseVal : a.href);
     if (!url || !PEEKABLE.test(url.protocol)) return null;
     if (isSamePageAnchor(url)) return null;
+    // Ahead of the modifier branch: a blocked destination is blocked however
+    // deliberately you clicked it.
+    if (hostBlocked(url.hostname)) return null;
 
     const byModifier = modifierHeld(event);
     if (byModifier) return url.href;
@@ -1100,6 +1131,9 @@
     if (!url) return;
     const u = parseURL(url);
     if (!u || !PEEKABLE.test(u.protocol)) return;
+    // The shim only fires on eligible pages, so the page end is already
+    // covered; the destination is not.
+    if (pageBlocked() || hostBlocked(u.hostname)) return;
     ensureArmed();
     openPeek(u.href, { x: innerWidth / 2, y: innerHeight / 2 });
   });
@@ -1114,12 +1148,21 @@
           ctxPinned = !!msg.pinned;
           publishEligibility();
           break;
-        case "peek:open":
-          if (msg.url) {
-            ensureArmed();
-            openPeek(msg.url, lastPointer);
+        // The single funnel for the context menu and ⌥⇧P. The worker screens
+        // these too, so a blocked link never gets this far in practice — this
+        // is the guarantee that no caller can route around the blocklist.
+        case "peek:open": {
+          if (!msg.url) break;
+          const u = parseURL(msg.url);
+          if (pageBlocked() || (u && hostBlocked(u.hostname))) {
+            reply?.({ blocked: true });
+            return true;
           }
-          break;
+          ensureArmed();
+          openPeek(msg.url, lastPointer);
+          reply?.({ blocked: false });
+          return true;
+        }
         case "peek:promote-current":
           current?.promote();
           break;
@@ -1163,6 +1206,7 @@
     // gets for free have to be restated. Without this, ⌥⇧P over a table-of-
     // contents link peeks the page you are already looking at.
     if (isSamePageAnchor(u)) return null;
+    if (pageBlocked() || hostBlocked(u.hostname)) return null;
     return u.href;
   }
 

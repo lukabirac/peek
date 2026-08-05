@@ -16,6 +16,7 @@ const DEFAULTS = {
   allowlist: [],
   reducedEffects: false,
   dismissOnSwipe: true,
+  swipeDirection: "right",
   splitMode: "sidePanel", // 'sidePanel' | 'window'
 };
 

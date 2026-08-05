@@ -103,10 +103,11 @@ outside the pane's top-right corner.
 | **▯▯** | Split with This Tab — puts the peeked page beside the tab it came from, in the same window. |
 
 Clicking the scrim, pressing <kbd>Esc</kbd>, or swiping also dismisses. The
-swipe is a two-finger gesture in whichever direction your browser uses to go
-Back — a right swipe with macOS natural scrolling on, a left swipe with it off.
-Back at the first page of a Peek's own history dismisses too, rather than
-dead-ending on a disabled button.
+swipe is a two-finger gesture that throws the pane off the side of the screen;
+if it feels backwards, flip **Which way you swipe** in settings — nothing
+reports a trackpad's scroll direction, so that one is a preference rather than
+something Peek can work out. Back at the first page of a Peek's own history
+dismisses too, rather than dead-ending on a disabled button.
 
 ### Split
 
@@ -181,7 +182,8 @@ options.
 | `allowlist` | `[]` | Hostnames treated like a pinned tab. Subdomains included. |
 | `splitMode` | `sidePanel` | `sidePanel` (one window) or `window` (two tiled windows). |
 | `prefetch` | on | Start loading on pointer-down rather than click. |
-| `dismissOnSwipe` | on | Two-finger swipe to dismiss, in the same direction your browser uses to go Back. Rubber-banded, with a fling threshold. |
+| `dismissOnSwipe` | on | Two-finger swipe to dismiss. Rubber-banded, with a fling threshold. |
+| `swipeDirection` | `right` | Which way that swipe throws the pane. `right` \| `left`. Flip it if the gesture feels backwards. |
 | `reducedEffects` | off | Drop the backdrop blur. Worth it on integrated graphics. |
 
 Peek suspends `X-Frame-Options` and CSP `frame-ancestors` so a preview can load

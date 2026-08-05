@@ -30,6 +30,7 @@
     allowlist: [], // extra hosts treated like a pinned tab
     reducedEffects: false, // drop backdrop blur on weak GPUs
     dismissOnSwipe: true,
+    swipeDirection: "right", // 'right' | 'left' — which way the panel is thrown
     splitMode: "sidePanel", // 'sidePanel' | 'window'
   };
 
@@ -193,6 +194,17 @@
   const SWIPE_COMMIT_PX = 118;
   const SWIPE_FLING_V = 0.9;
   const SWIPE_FLING_MIN_PX = 46;
+
+  /**
+   * +1 throws the panel to the right, -1 to the left.
+   *
+   * Which physical finger movement that corresponds to depends on the OS
+   * scroll direction, which no API exposes — with macOS natural scrolling on,
+   * a rightward swipe reports a negative deltaX, and with it off the same
+   * motion reports a positive one. Hence the setting: pick whichever matches
+   * your hand rather than guessing on your behalf.
+   */
+  const swipeSign = () => (settings.swipeDirection === "left" ? -1 : 1);
 
   class Peek {
     constructor() {
@@ -723,8 +735,10 @@
       if (!settings.dismissOnSwipe || this.state !== "open") return;
       if (Math.abs(dx) < Math.abs(dy) * 1.4) return; // vertical scroll wins
 
-      // macOS back-swipe (two fingers to the right) reports negative deltaX.
-      if (!this.drag && dx > -2) return;
+      // Distance travelled along the dismiss axis, whichever way that points.
+      const sign = swipeSign();
+      const travel = -dx * sign;
+      if (!this.drag && travel < 2) return;
 
       if (!this.drag) {
         this.drag = { x: 0, last: performance.now(), v: 0, n: 0 };
@@ -735,15 +749,16 @@
       const dt = now - this.drag.last;
       this.drag.n++;
       // The first event of a gesture has no interval to divide by, and
-      // dx/~0ms is an enormous number that would read as a fling from a
+      // travel/~0ms is an enormous number that would read as a fling from a
       // standing start. Velocity only means anything from the second sample on.
-      if (this.drag.n > 1) this.drag.v = -dx / Math.max(1, dt);
+      if (this.drag.n > 1) this.drag.v = travel / Math.max(1, dt);
       this.drag.last = now;
-      this.drag.x = Math.max(0, this.drag.x - dx);
+      this.drag.x = Math.max(0, this.drag.x + travel);
 
       const resisted = Math.pow(this.drag.x, 0.86) * 1.6;
       const progress = clamp(resisted / 320, 0, 1);
-      this.panel.style.transform = `translateX(${resisted}px) scale(${1 - progress * 0.03})`;
+      this.panel.style.transform =
+        `translateX(${resisted * sign}px) scale(${1 - progress * 0.03})`;
       this.panel.style.opacity = String(1 - progress * 0.35);
 
       // Commit the moment the gesture earns it, rather than when the events
@@ -889,7 +904,7 @@
       const swipe = opts.from === "swipe";
       const start = this.panel.style.transform || "none";
       const end = swipe
-        ? `translateX(${Math.max(innerWidth * 0.5, 420)}px) scale(0.94)`
+        ? `translateX(${swipeSign() * Math.max(innerWidth * 0.5, 420)}px) scale(0.94)`
         : "scale(0.975) translateY(6px)";
 
       // A swipe exit continues a motion that is already underway, so it has to

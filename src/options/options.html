@@ -145,12 +145,25 @@
           <div class="txt">
             <span class="t">Swipe to dismiss</span>
             <span class="d">
-              Two fingers, in whichever direction your browser uses to go Back —
-              a right swipe with natural scrolling on, a left swipe with it off.
-              Rubber-banded, with a fling threshold.
+              Two fingers, rubber-banded, with a fling threshold.
             </span>
           </div>
           <input type="checkbox" data-key="dismissOnSwipe" class="switch" />
+        </label>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Which way you swipe</span>
+            <span class="d">
+              Nothing reports your trackpad's scroll direction, so this is a
+              preference rather than something Peek can work out. If the gesture
+              feels backwards, pick the other one.
+            </span>
+          </div>
+          <select data-key="swipeDirection" class="select">
+            <option value="right">Throw it right</option>
+            <option value="left">Throw it left</option>
+          </select>
         </label>
 
         <label class="row">

@@ -191,20 +191,26 @@
       true
     );
 
-    // Forward the back-swipe only when the page itself has nothing left to
-    // scroll horizontally — otherwise a carousel would fight the gesture.
+    // Forward a horizontal swipe only when the page has nothing left to scroll
+    // *in that direction* — otherwise a carousel would fight the gesture.
+    // Which direction dismisses is the host's business, not ours, so this
+    // asks about the way the wheel is actually pointing rather than assuming.
+    const hasRoom = (node, deltaX) =>
+      deltaX < 0
+        ? node.scrollLeft > 0
+        : node.scrollLeft < node.scrollWidth - node.clientWidth - 1;
+
     window.addEventListener(
       "wheel",
       (e) => {
         if (Math.abs(e.deltaX) < Math.abs(e.deltaY) * 1.4) return;
         const el = document.scrollingElement || document.documentElement;
-        const canScrollLeft = el.scrollLeft > 0;
         let node = e.target;
         while (node && node !== el) {
-          if (node.scrollWidth > node.clientWidth + 1 && node.scrollLeft > 0) return;
+          if (node.scrollWidth > node.clientWidth + 1 && hasRoom(node, e.deltaX)) return;
           node = node.parentElement;
         }
-        if (canScrollLeft) return;
+        if (hasRoom(el, e.deltaX)) return;
         tell("swipe", { deltaX: e.deltaX, deltaY: e.deltaY });
       },
       { capture: true, passive: true }

@@ -180,6 +180,28 @@
 
         <label class="row">
           <div class="txt">
+            <span class="t">Swipe sensitivity</span>
+            <span class="d">
+              How far the gesture has to travel before the Peek lets go. Lower
+              is more deliberate and harder to trigger by accident; higher lets
+              a flick do it.
+            </span>
+          </div>
+          <div class="slider">
+            <input
+              type="range"
+              data-key="swipeSensitivity"
+              class="range"
+              min="0.5"
+              max="2"
+              step="0.1"
+            />
+            <output class="rangeVal" id="sensOut"></output>
+          </div>
+        </label>
+
+        <label class="row">
+          <div class="txt">
             <span class="t">Reduce effects</span>
             <span class="d">Drops the backdrop blur. Worth it on integrated graphics.</span>
           </div>
@@ -220,6 +242,11 @@
           this extension, and it is why the arming window is kept as short as it is.
         </p>
       </section>
+
+      <div class="bar" id="stale" hidden>
+        <span id="staleText"></span>
+        <button id="reloadStale" class="ghost" type="button">Reload them</button>
+      </div>
 
       <footer class="foot">
         <span id="status" class="status" role="status"></span>

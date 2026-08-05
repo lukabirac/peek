@@ -9,6 +9,7 @@ const DEFAULTS = {
   dismissOnSwipe: true,
   swipeDirection: "right",
   naturalScrolling: true,
+  swipeSensitivity: 1,
   splitMode: "sidePanel",
 };
 
@@ -24,6 +25,7 @@ function toUI(el, value) {
 
 function fromUI(el) {
   if (el.type === "checkbox") return el.checked;
+  if (el.type === "range") return Number(el.value);
   if (el.tagName === "TEXTAREA") {
     return el.value
       .split("\n")
@@ -33,17 +35,39 @@ function fromUI(el) {
   return el.value;
 }
 
+/* ─── Sensitivity readout ─────────────────────────────────────────────── */
+/*
+ * The slider divides the commit threshold, so it is worth showing what that
+ * actually costs in finger movement. These mirror peek-host.js: the panel
+ * travels pow(x, 0.86) * 1.6 for x pixels of swipe, and commits past 118px
+ * of panel travel divided by the sensitivity.
+ */
+const sensOut = document.getElementById("sensOut");
+
+function travelFor(sensitivity) {
+  const commitPx = 118 / sensitivity;
+  return Math.round(Math.pow(commitPx / 1.6, 1 / 0.86));
+}
+
+function paintSensitivity(value) {
+  const v = Number(value) || 1;
+  sensOut.textContent = `${v.toFixed(1)}× · ${travelFor(v)} px`;
+}
+
+/* ─── Load / save ─────────────────────────────────────────────────────── */
+
 async function load() {
   const { settings } = await chrome.storage.sync.get("settings");
   const s = { ...DEFAULTS, ...(settings || {}) };
   for (const el of fields) toUI(el, s[el.dataset.key]);
+  paintSensitivity(s.swipeSensitivity);
 }
 
 function flash(text) {
   statusEl.textContent = text;
   statusEl.dataset.on = "1";
   clearTimeout(flash._t);
-  flash._t = setTimeout(() => (statusEl.dataset.on = "0"), 1400);
+  flash._t = setTimeout(() => (statusEl.dataset.on = "0"), 2600);
 }
 
 async function save() {
@@ -51,23 +75,95 @@ async function save() {
   const next = { ...DEFAULTS, ...(settings || {}) };
   for (const el of fields) next[el.dataset.key] = fromUI(el);
   await chrome.storage.sync.set({ settings: next });
-  flash("Saved");
+  // Content scripts listen on storage.onChanged, so every live tab already has
+  // this. The only thing that waits is anything built at Peek construction.
+  flash("Saved — applies to your next Peek");
+  checkStale();
 }
 
 for (const el of fields) {
-  const evt = el.tagName === "TEXTAREA" ? "input" : "change";
+  const evt = el.tagName === "TEXTAREA" || el.type === "range" ? "input" : "change";
   el.addEventListener(evt, () => {
+    if (el.type === "range") paintSensitivity(el.value);
     clearTimeout(saveTimer);
-    // Typing in the allowlist shouldn't write on every keystroke.
-    saveTimer = setTimeout(save, el.tagName === "TEXTAREA" ? 400 : 0);
+    // Typing in the allowlist, or dragging the slider, shouldn't write on
+    // every single event.
+    saveTimer = setTimeout(save, el.tagName === "TEXTAREA" || el.type === "range" ? 300 : 0);
   });
 }
 
 document.getElementById("reset").addEventListener("click", async () => {
   await chrome.storage.sync.set({ settings: { ...DEFAULTS } });
   await load();
-  flash("Reset");
+  flash("Reset to defaults");
+  checkStale();
 });
+
+/* ─── Tabs that predate the extension ─────────────────────────────────── */
+/*
+ * Settings themselves need no reload — content scripts pick them up through
+ * storage.onChanged the instant they are written. What does need one is a tab
+ * that was already open when Peek was installed or reloaded: it never got a
+ * content script, so nothing in it will respond however the settings change.
+ *
+ * Rather than tell everyone to reload everything, ask each tab whether it is
+ * listening and name only the ones that aren't.
+ */
+
+const staleBar = document.getElementById("stale");
+const staleText = document.getElementById("staleText");
+let staleIds = [];
+
+async function findStale() {
+  let tabs = [];
+  try {
+    tabs = await chrome.tabs.query({ url: ["http://*/*", "https://*/*"] });
+  } catch {
+    return [];
+  }
+  const results = await Promise.all(
+    tabs.map(async (t) => {
+      // A discarded tab has no script because it isn't running at all; it will
+      // get one when it wakes, so it isn't stale in any sense worth reporting.
+      if (t.discarded || t.status === "unloaded") return null;
+      try {
+        const r = await chrome.tabs.sendMessage(t.id, { type: "peek:ping" });
+        return r?.ok ? null : t.id;
+      } catch {
+        return t.id;
+      }
+    })
+  );
+  return results.filter((id) => id !== null);
+}
+
+async function checkStale() {
+  staleIds = await findStale();
+  if (!staleIds.length) {
+    staleBar.hidden = true;
+    return;
+  }
+  const n = staleIds.length;
+  staleBar.hidden = false;
+  staleText.innerHTML =
+    `<strong>${n} open ${n === 1 ? "tab was" : "tabs were"} loaded before Peek</strong>, ` +
+    `so ${n === 1 ? "it has" : "they have"} no Peek in ${n === 1 ? "it" : "them"} at all — ` +
+    `settings won't reach ${n === 1 ? "it" : "them"} until reloaded. ` +
+    `Every other tab picks up changes immediately.`;
+}
+
+document.getElementById("reloadStale").addEventListener("click", async () => {
+  const ids = staleIds.slice();
+  for (const id of ids) {
+    try {
+      await chrome.tabs.reload(id);
+    } catch {}
+  }
+  flash(`Reloaded ${ids.length} ${ids.length === 1 ? "tab" : "tabs"}`);
+  setTimeout(checkStale, 1200);
+});
+
+/* ─── Shortcuts note ──────────────────────────────────────────────────── */
 
 // The shortcuts page URL carries the browser's own scheme, which is not
 // "chrome://" in every Chromium build.
@@ -85,3 +181,4 @@ document.getElementById("reset").addEventListener("click", async () => {
 })();
 
 load();
+checkStale();

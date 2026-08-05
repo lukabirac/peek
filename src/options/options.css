@@ -196,6 +196,43 @@ code {
   font: 400 12.5px/1.7 ui-monospace, "SF Mono", Menlo, monospace;
   resize: vertical;
 }
+.slider { display: flex; align-items: center; gap: 12px; flex: 0 0 auto; }
+.range {
+  appearance: none;
+  width: 132px;
+  height: 18px;
+  background: transparent;
+  cursor: pointer;
+}
+.range::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+.range::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6.5px;
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.26);
+  transition: transform 130ms var(--ease);
+}
+.range:hover::-webkit-slider-thumb { transform: scale(1.12); }
+.range:active::-webkit-slider-thumb { transform: scale(0.94); }
+.range:focus-visible { outline: none; }
+.range:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--card), 0 0 0 5px var(--ink);
+}
+.rangeVal {
+  font: 500 11px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--dim);
+  min-width: 76px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
 .area::placeholder { color: var(--faint); }
 .area:focus-visible { outline: 1.5px solid var(--ink); outline-offset: -1px; border-color: transparent; }
 
@@ -227,6 +264,26 @@ kbd {
 .body { margin: 10px 0 0; font-size: 12.5px; line-height: 1.65; max-width: 62ch; color: var(--dim); }
 .body strong { color: var(--text); font-weight: 560; }
 .note { margin: 12px 0 0; font-size: 12px; color: var(--faint); line-height: 1.6; }
+
+/* ── Stale-tab notice ───────────────────────────────────────────────────── */
+/* Shown only when there really are tabs that predate the extension. Settings
+   themselves reach every live tab the moment they are written. */
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 0 0 16px;
+  padding: 12px 16px;
+  border: 0.5px solid var(--line-strong);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--dim);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.bar[hidden] { display: none; }
+.bar strong { color: var(--text); font-weight: 560; }
+.bar .ghost { flex: 0 0 auto; }
 
 /* ── Footer ─────────────────────────────────────────────────────────────── */
 .foot { display: flex; align-items: center; gap: 14px; padding: 6px 2px; }

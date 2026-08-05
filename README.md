@@ -187,7 +187,20 @@ options.
 | `dismissOnSwipe` | on | Two-finger swipe to dismiss. Rubber-banded, with a fling threshold. |
 | `naturalScrolling` | on | Match your system's trackpad setting. It decides which way a swipe is *reported*, and no API exposes it — get it wrong and the pane runs away from your fingers. |
 | `swipeDirection` | `right` | The direction you move your fingers to dismiss. The pane always travels with them. `right` \| `left`. |
+| `swipeSensitivity` | `1` | How far the gesture must travel before the Peek lets go, `0.5`–`2`. It divides the threshold rather than scaling the motion, so the pane moves the same distance per finger — it just gives up sooner. At `1` that's ~149 px; at `2`, ~66 px. |
 | `reducedEffects` | off | Drop the backdrop blur. Worth it on integrated graphics. |
+
+The swipe controls live under **Feel**:
+
+![The Feel section, light and dark](docs/settings-feel.png)
+
+Settings take effect immediately — content scripts pick them up through
+`storage.onChanged`, so no tab needs reloading for a change to apply. The one
+exception is a tab that was already open when Peek was *installed or reloaded*:
+it never received a content script at all, so nothing in it will respond however
+the settings change. The settings page detects exactly those tabs by pinging
+each one, names them, and offers to reload them — rather than telling you to
+reload everything on the off-chance.
 
 Peek suspends `X-Frame-Options` and CSP `frame-ancestors` so a preview can load
 at all. Those rules are session-scoped, conditioned on the single tab holding the

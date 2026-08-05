@@ -18,6 +18,7 @@ const DEFAULTS = {
   dismissOnSwipe: true,
   swipeDirection: "right",
   naturalScrolling: true,
+  swipeSensitivity: 1,
   splitMode: "sidePanel", // 'sidePanel' | 'window'
 };
 

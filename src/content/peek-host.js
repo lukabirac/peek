@@ -32,6 +32,7 @@
     dismissOnSwipe: true,
     swipeDirection: "right", // 'right' | 'left' — which way you swipe, and go
     naturalScrolling: true, // does a rightward swipe report a negative deltaX?
+    swipeSensitivity: 1, // 0.5 deliberate … 2 twitchy
     splitMode: "sidePanel", // 'sidePanel' | 'window'
   };
 
@@ -195,6 +196,16 @@
   const SWIPE_COMMIT_PX = 118;
   const SWIPE_FLING_V = 0.9;
   const SWIPE_FLING_MIN_PX = 46;
+  // The pane is fully faded by ~2.7× the commit distance. Held as a ratio so
+  // the fade keeps pace when sensitivity moves the threshold — otherwise a
+  // twitchy setting would dismiss while the pane still looked barely touched.
+  const SWIPE_FADE_RATIO = 320 / SWIPE_COMMIT_PX;
+
+  /** Higher is twitchier: it divides every threshold, it doesn't scale motion. */
+  const sensitivity = () => {
+    const s = Number(settings.swipeSensitivity);
+    return Number.isFinite(s) && s > 0 ? clamp(s, 0.5, 2) : 1;
+  };
 
   /*
    * Two independent signs, because a swipe has two independent questions.
@@ -764,8 +775,11 @@
       this.drag.last = now;
       this.drag.x = Math.max(0, this.drag.x + travel);
 
+      const sens = sensitivity();
+      const commitPx = SWIPE_COMMIT_PX / sens;
+
       const resisted = Math.pow(this.drag.x, 0.86) * 1.6;
-      const progress = clamp(resisted / 320, 0, 1);
+      const progress = clamp(resisted / (commitPx * SWIPE_FADE_RATIO), 0, 1);
       this.panel.style.transform =
         `translateX(${resisted * dir}px) scale(${1 - progress * 0.03})`;
       this.panel.style.opacity = String(1 - progress * 0.35);
@@ -781,9 +795,11 @@
       // of them; a mouse's horizontal tilt-wheel is exactly one, and a single
       // notch arrives scaled to ~150px — enough, on its own, to clear the
       // distance threshold and throw away a peek nobody meant to dismiss.
-      const travelled = this.drag.n > 1 && resisted > SWIPE_COMMIT_PX;
+      const travelled = this.drag.n > 1 && resisted > commitPx;
       const flung =
-        this.drag.n > 2 && this.drag.v > SWIPE_FLING_V && resisted > SWIPE_FLING_MIN_PX;
+        this.drag.n > 2 &&
+        this.drag.v > SWIPE_FLING_V / sens &&
+        resisted > SWIPE_FLING_MIN_PX / sens;
       if (travelled || flung) {
         const velocity = this.drag.v;
         clearTimeout(this._dragT);
@@ -1112,6 +1128,11 @@
           break;
         case "peek:hovered":
           reply?.({ url: hoveredLink() });
+          return true;
+        // Proof of life for the settings page: a tab that was already open
+        // when Peek was installed has no content script and will not answer.
+        case "peek:ping":
+          reply?.({ ok: true });
           return true;
       }
     });

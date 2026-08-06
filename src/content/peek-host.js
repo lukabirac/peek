@@ -222,6 +222,19 @@
   const ORIGIN_CLAMP = [8, 92];
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+  /*
+   * How long a revealed peek may show nothing at all before it gives up and
+   * offers a tab. This is the backstop for a navigation that never commits:
+   * a site that refuses a frame in script rather than in headers fires no load
+   * event, so the short countdown in _onFrameLoad is never armed and the
+   * spinner would otherwise run forever.
+   *
+   * Generous, because it races real network time rather than a load that has
+   * already happened. Being wrong is cheap in the one direction that matters:
+   * a slow page that eventually reports retracts the fallback in _applyState.
+   */
+  const NO_COMMIT_GIVEUP_MS = 5000;
+
   // Swipe-to-dismiss commit points, in panel pixels and px/ms. All are tested
   // during the gesture rather than after it — see _wheel. A fling carries its
   // own floor: however fast the flick, the panel has to have actually moved,
@@ -275,6 +288,7 @@
       // reset before the event is ever delivered.
       this.ignoreClose = 0;
       this.handshook = false;
+      this.committed = false; // has any document in the frame fired load yet?
       this.drag = null;
       this._build();
     }
@@ -424,6 +438,21 @@
       this.frame.className = "frame";
       this.frame.setAttribute("allow", "clipboard-write; fullscreen; picture-in-picture");
       this.frame.setAttribute("referrerpolicy", "no-referrer-when-downgrade");
+      /*
+       * Everything a normal document can do, minus navigating the top frame.
+       * A cross-origin frame can't do that on load anyway, but once you have
+       * clicked inside a peek the frame holds user activation and a
+       * frame-busting site could throw your tab somewhere you never asked to
+       * go. Omitting both allow-top-navigation tokens is what stops it; the
+       * rest of the list is here to keep the peek as capable as it was.
+       */
+      this.frame.setAttribute(
+        "sandbox",
+        "allow-same-origin allow-scripts allow-forms allow-modals " +
+          "allow-popups allow-popups-to-escape-sandbox allow-downloads " +
+          "allow-pointer-lock allow-presentation allow-orientation-lock " +
+          "allow-storage-access-by-user-activation"
+      );
 
       this.loader = document.createElement("div");
       this.loader.className = "loader";
@@ -652,6 +681,7 @@
       // the "can't be embedded" countdown against a document that was never
       // asked to load anything.
       if (!this.frame.src || this.frame.src === "about:blank") return;
+      this.committed = true;
       // Every committed document is a new child that has to be greeted again.
       this.handshook = false;
       this._toChild({ action: "init" });
@@ -759,6 +789,16 @@
           this.loader.dataset.on = "1";
       }, 420);
 
+      // Armed here rather than at prime() so the clock measures how long you
+      // have been looking at a spinner, not how long a link sat warmed under
+      // the cursor. If the document has already committed, _onFrameLoad owns
+      // the countdown and its shorter one stands.
+      if (!this.committed) {
+        clearTimeout(this._blockedT);
+        this._blockedT = setTimeout(() => {
+          if (!this.handshook) this._blocked();
+        }, NO_COMMIT_GIVEUP_MS);
+      }
     }
 
     _animateBackdrop(inward, duration, easing) {

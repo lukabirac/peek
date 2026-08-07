@@ -132,6 +132,16 @@ h1 {
 /* The shared kbd is sized for the shortcuts list; inline in body copy it needs
    to sit on the line rather than push it apart. */
 .d kbd { height: 17px; min-width: 17px; padding: 0 4px; font-size: 10px; border-radius: 4px; }
+/* The rail's own icons, drawn inline in prose at text size. Naming them with
+   the nearest Unicode characters (⛶, ▯▯) put a tofu box in the sentence on
+   every machine whose fonts don't carry them, which is most of them. */
+.gl {
+  width: 1.08em;
+  height: 1.08em;
+  vertical-align: -0.2em;
+  margin: 0 0.06em;
+  opacity: 0.85;
+}
 code {
   font: 500 11.5px/1 var(--font-mono);
   background: var(--hover);

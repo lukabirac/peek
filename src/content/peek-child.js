@@ -132,8 +132,19 @@
     // own back-navigation and we never see a usable wheel event — so this
     // frame opts out of overscroll entirely. Scoped to the framed instance,
     // which is thrown away when the peek closes.
+    // Set on both elements deliberately. The spec propagates the viewport's
+    // overscroll behaviour from the root element; engines have historically
+    // taken it from the body instead, and which one wins is not observable
+    // from script. Setting one and being wrong means the browser keeps the
+    // gesture and the swipe silently does nothing.
     try {
       document.documentElement.style.overscrollBehaviorX = "none";
+      const onBody = () => {
+        if (document.body) document.body.style.overscrollBehaviorX = "none";
+      };
+      onBody();
+      if (!document.body)
+        document.addEventListener("DOMContentLoaded", onBody, { once: true });
     } catch {}
 
     document.addEventListener("readystatechange", () => state());
@@ -195,10 +206,53 @@
     // *in that direction* — otherwise a carousel would fight the gesture.
     // Which direction dismisses is the host's business, not ours, so this
     // asks about the way the wheel is actually pointing rather than assuming.
+    //
+    // Overflowing content is not the same thing as a scrollable box. Any
+    // element reports scrollWidth > clientWidth when something inside it is
+    // wider, whatever its overflow is set to, and nearly every real page has
+    // one of those somewhere above the cursor — a full-bleed hero, a wide
+    // table, a row that sticks out by three pixels. Testing content alone
+    // therefore swallowed the gesture on most pages, which is why swiping
+    // over the page did nothing while the same swipe over the scrim worked.
+    // So ask the computed style whether the box can scroll at all first.
+    const canScrollX = (node) => {
+      if (!node || node.nodeType !== 1) return false;
+      let ov;
+      try {
+        ov = getComputedStyle(node).overflowX;
+      } catch {
+        return false;
+      }
+      if (ov !== "auto" && ov !== "scroll" && ov !== "overlay") return false;
+      return node.scrollWidth > node.clientWidth + 1;
+    };
+
+    // The viewport is the exception: its overflow comes from <html>, or from
+    // <body> when <html> leaves it visible. That propagation is why the same
+    // computed-style test can't just be pointed at the scrolling element.
+    const viewportScrollsX = () => {
+      const el = document.scrollingElement || document.documentElement;
+      if (!el) return false;
+      let ov = "visible";
+      try {
+        ov = getComputedStyle(document.documentElement).overflowX;
+        if (ov === "visible" && document.body) ov = getComputedStyle(document.body).overflowX;
+      } catch {}
+      if (ov === "hidden" || ov === "clip") return false;
+      return el.scrollWidth > el.clientWidth + 1;
+    };
+
+    // How much room is worth deferring to. A page whose layout is eight pixels
+    // wider than its window can technically scroll, and with a one-pixel
+    // tolerance it claimed the gesture on that basis — the swipe went into
+    // taking up eight pixels of slack instead of dismissing. Nothing a person
+    // can see is at stake under a couple of dozen pixels; a real carousel has
+    // hundreds and still wins.
+    const SCROLL_SLOP = 24;
     const hasRoom = (node, deltaX) =>
       deltaX < 0
-        ? node.scrollLeft > 0
-        : node.scrollLeft < node.scrollWidth - node.clientWidth - 1;
+        ? node.scrollLeft > SCROLL_SLOP
+        : node.scrollLeft < node.scrollWidth - node.clientWidth - SCROLL_SLOP;
 
     window.addEventListener(
       "wheel",
@@ -207,11 +261,14 @@
         const el = document.scrollingElement || document.documentElement;
         let node = e.target;
         while (node && node !== el) {
-          if (node.scrollWidth > node.clientWidth + 1 && hasRoom(node, e.deltaX)) return;
+          if (canScrollX(node) && hasRoom(node, e.deltaX)) return;
           node = node.parentElement;
         }
-        if (hasRoom(el, e.deltaX)) return;
-        tell("swipe", { deltaX: e.deltaX, deltaY: e.deltaY });
+        if (viewportScrollsX() && hasRoom(el, e.deltaX)) return;
+        // The timestamp travels with it. Measured on arrival instead, the gap
+        // between two events is postMessage latency plus whatever this page's
+        // main thread was busy with — not how fast the fingers were moving.
+        tell("swipe", { deltaX: e.deltaX, deltaY: e.deltaY, t: e.timeStamp });
       },
       { capture: true, passive: true }
     );

@@ -117,9 +117,9 @@ outside the pane's top-right corner.
 
 | | |
 |---|---|
-| **✕** | Close. Nothing about your session changed. |
-| **⛶** | Open as Tab — promotes the Peek to a real tab, inserted right after the current one. |
-| **▯▯** | Split with This Tab — puts the peeked page beside the tab it came from, in the same window. |
+| **Close** | Nothing about your session changed. |
+| **Open as Tab** | Promotes the Peek to a real tab, inserted right after the current one. |
+| **Split with This Tab** | Puts the peeked page beside the tab it came from, in the same window. |
 
 Clicking the scrim, pressing <kbd>Esc</kbd>, or swiping also dismisses. The
 swipe is a two-finger gesture that throws the pane off the side of the screen,
@@ -166,7 +166,7 @@ under `swipeOpposite`:
 
 | | |
 |---|---|
-| `promote` | Open it as a tab, as the ⛶ button does. |
+| `promote` | Open it as a tab, as the **Open as Tab** button does. |
 | `off` | Only the dismiss direction is a gesture. |
 
 **Splitting is not on that list, deliberately.** A swipe is not a click, and
@@ -175,7 +175,7 @@ can talk it round. Re-aiming a panel that is already open needs no gesture, so
 the swipe could be made to work *sometimes*: instantly when a panel happened to
 be up, and not at all when one wasn't. A gesture whose meaning depends on
 invisible state is worse than one that does the same thing every time, so the
-swipe does the thing it can always do. The ▯▯ button and
+swipe does the thing it can always do. The **Split with This Tab** button and
 <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd> carry real activation and split.
 
 ### Keyboard

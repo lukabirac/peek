@@ -293,7 +293,7 @@
    * else, so the gesture could only ever half-work — instant when a panel
    * happened to be open already, and a request for a click when it wasn't.
    * A gesture that does two different things depending on invisible state is
-   * worse than one that does the same thing every time. The ▯▯ button and
+   * worse than one that does the same thing every time. The split button and
    * ⌥⇧S still split, and they always could.
    */
   const swipeOppositeAction = () => {
@@ -631,7 +631,7 @@
           if (d.key === "Escape") this.close();
           break;
         case "swipe":
-          this._wheel(d.deltaX, d.deltaY);
+          this._wheel(d.deltaX, d.deltaY, d.t);
           break;
         case "open-tab":
           send({ type: "peek:open-tab", url: d.url, active: !!d.active });
@@ -864,9 +864,17 @@
 
     /* ---- gestures ---------------------------------------------------- */
 
-    _wheel(dx, dy) {
+    /**
+     * @param stamp  Present when the event was relayed from the peeked page:
+     *               its own event.timeStamp. Two clocks are in play — this
+     *               one and performance.now() — and only differences are ever
+     *               taken, so a drag has to notice when the source changes
+     *               rather than subtract one from the other.
+     */
+    _wheel(dx, dy, stamp) {
       if (this.state !== "open") return;
       if (Math.abs(dx) < Math.abs(dy) * 1.4) return; // vertical scroll wins
+      const relayed = typeof stamp === "number";
 
       // Movement along the dismiss axis: positive is the way you swipe to throw
       // the peek away, negative is the way you swipe to dock it beside the tab.
@@ -883,7 +891,8 @@
         if (opposite ? act === "off" : !settings.dismissOnSwipe) return;
         this.drag = {
           x: 0,
-          last: performance.now(),
+          last: relayed ? stamp : performance.now(),
+          relayed,
           v: 0,
           n: 0,
           act,
@@ -893,13 +902,17 @@
         this.panel.style.willChange = "transform, opacity";
       }
       const travel = along * this.drag.sign;
-      const now = performance.now();
-      const dt = now - this.drag.last;
+      const now = relayed ? stamp : performance.now();
+      // NaN whenever the clock changed under us — a gesture that crossed from
+      // the scrim onto the pane, say. Better to skip one velocity sample than
+      // to subtract two unrelated time origins and call the result a fling.
+      const dt = this.drag.relayed === relayed ? now - this.drag.last : NaN;
       this.drag.n++;
       // The first event of a gesture has no interval to divide by, and
       // travel/~0ms is an enormous number that would read as a fling from a
       // standing start. Velocity only means anything from the second sample on.
-      if (this.drag.n > 1) this.drag.v = travel / Math.max(1, dt);
+      if (this.drag.n > 1 && dt > 0) this.drag.v = travel / Math.max(1, dt);
+      this.drag.relayed = relayed;
       this.drag.last = now;
       this.drag.x = Math.max(0, this.drag.x + travel);
 
@@ -936,6 +949,11 @@
         const velocity = this.drag.v;
         const act = this.drag.act;
         clearTimeout(this._dragT);
+        // Where the pane is, and how fast it is going, at the moment the
+        // gesture hands over. close() reads the live transform for this;
+        // promote's exit needs the number as well, to finish the travel
+        // instead of hauling the pane back across the screen.
+        this._exit = { x: resisted * dir * this.drag.sign, velocity };
         this.drag = null;
         this.panel.dataset.dragging = "0";
         if (act === "promote") this.promote();
@@ -944,7 +962,12 @@
       }
 
       clearTimeout(this._dragT);
-      this._dragT = setTimeout(() => this._wheelEnd(), 90);
+      // A relayed gesture is only as regular as the peeked page's main thread.
+      // 90ms is right for events landing here directly; behind a busy page it
+      // expires mid-swipe, springs the pane back to centre, and starts the
+      // next event on a fresh drag that never accumulates enough to commit —
+      // which is what a swipe that "doesn't work" over the pane looks like.
+      this._dragT = setTimeout(() => this._wheelEnd(), this.drag.relayed ? 200 : 90);
     }
 
     /** Only ever the snap-back now — a committed swipe never reaches here. */
@@ -1032,18 +1055,44 @@
       const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
       const S = getComputedStyle(this.root);
       const easeOut = S.getPropertyValue("--ease-out").trim() || "ease-out";
-      const dur = reduce ? 110 : 260;
 
-      // Expand toward full-bleed: "this layer became the page".
-      const r = this.panel.getBoundingClientRect();
-      const sx = innerWidth / r.width;
-      const sy = innerHeight / r.height;
-      const s = Math.min(Math.max(sx, sy), 1.14);
+      // A swipe hands this over mid-flight, with the pane already carried off
+      // centre and still moving. Starting from "none" snapped it back to the
+      // middle for a frame before it grew — the jolt you can feel — and a
+      // fixed duration made a hard fling stall on the way out. close() has
+      // continued the motion like this all along; this is the same treatment.
+      const exit = this._exit;
+      const start = this.panel.style.transform || "none";
+      const dur = reduce
+        ? 110
+        : exit
+          ? clamp(300 - (exit.velocity || 0) * 55, 200, 300)
+          : 260;
+
+      // Expand toward full-bleed: "this layer became the page". Measured from
+      // the layout box, not the transformed one — mid-swipe the pane is scaled
+      // down, and reading that back would make the growth depend on how far
+      // the swipe happened to get.
+      const w = this.panel.offsetWidth || innerWidth;
+      const h = this.panel.offsetHeight || innerHeight;
+      const s = Math.min(Math.max(innerWidth / w, innerHeight / h), 1.14);
+
+      // Keep some of the travel rather than reversing it. Growing and sliding
+      // back at once is what read as a bounce.
+      const x = exit ? exit.x * 0.35 : 0;
 
       this.panel.animate(
         [
-          { transform: "none", opacity: 1, borderRadius: "12px" },
-          { transform: `scale(${s})`, opacity: 0, borderRadius: "0px" },
+          {
+            transform: start,
+            opacity: Number(this.panel.style.opacity || 1),
+            borderRadius: "12px",
+          },
+          {
+            transform: `translateX(${x.toFixed(2)}px) scale(${s})`,
+            opacity: 0,
+            borderRadius: "0px",
+          },
         ],
         { duration: dur, easing: easeOut, fill: "forwards" }
       );

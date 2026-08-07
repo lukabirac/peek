@@ -19,6 +19,7 @@ const DEFAULTS = {
   holdDelay: 450,
   reducedEffects: false,
   dismissOnSwipe: true,
+  splitOnSwipe: true,
   swipeDirection: "right",
   naturalScrolling: true,
   swipeSensitivity: 1,

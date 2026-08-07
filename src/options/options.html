@@ -212,6 +212,23 @@
 
         <label class="row">
           <div class="txt">
+            <span class="t">Swipe the other way to split</span>
+            <span class="d">
+              The same gesture reversed sends the page alongside the tab it
+              came from instead of throwing it away. It doesn't fade as it
+              moves, because it isn't leaving. Where it lands depends on
+              <strong>Where a split opens</strong> above — and on a swipe the
+              side panel is usually out of reach, since Chromium only opens it
+              in response to a click or a keystroke, so it falls back to a tab
+              beside this one. The button and <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd>
+              still get the panel itself.
+            </span>
+          </div>
+          <input type="checkbox" data-key="splitOnSwipe" class="switch" />
+        </label>
+
+        <label class="row">
+          <div class="txt">
             <span class="t">Natural scrolling</span>
             <span class="d">
               Match your system setting — on macOS, System Settings → Trackpad →

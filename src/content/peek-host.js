@@ -33,6 +33,7 @@
     holdDelay: 450, // ms of stillness before a press counts as a hold
     reducedEffects: false, // drop backdrop blur on weak GPUs
     dismissOnSwipe: true,
+    splitOnSwipe: true, // the same gesture the other way splits instead
     swipeDirection: "right", // 'right' | 'left' — which way you swipe, and go
     naturalScrolling: true, // does a rightward swipe report a negative deltaX?
     swipeSensitivity: 1, // 0.5 deliberate … 2 twitchy
@@ -527,7 +528,11 @@
 
       this.frame.addEventListener("load", () => this._onFrameLoad());
 
-      if (settings.dismissOnSwipe) {
+      // Either gesture is reason enough to listen; _wheel decides which of the
+      // two a given swipe is and re-checks that its own setting is on.
+      // Either gesture is reason enough to listen; _wheel decides which of the
+      // two a given swipe is and re-checks that its own setting is on.
+      if (settings.dismissOnSwipe || settings.splitOnSwipe) {
         this.dlg.addEventListener("wheel", (e) => this._wheel(e.deltaX, e.deltaY), {
           passive: true,
         });
@@ -628,6 +633,7 @@
           break;
         case "split-ok":
           // The panel is up; the peek has served its purpose.
+          clearTimeout(this._splitSafetyT);
           this.close({ from: "split" });
           break;
         case "split-fallback":
@@ -840,19 +846,33 @@
     /* ---- gestures ---------------------------------------------------- */
 
     _wheel(dx, dy) {
-      if (!settings.dismissOnSwipe || this.state !== "open") return;
+      if (this.state !== "open") return;
       if (Math.abs(dx) < Math.abs(dy) * 1.4) return; // vertical scroll wins
 
-      // Distance travelled along the dismiss axis, whichever way that points.
+      // Movement along the dismiss axis: positive is the way you swipe to throw
+      // the peek away, negative is the way you swipe to dock it beside the tab.
       const dir = dismissSign();
-      const travel = dx * naturalSign() * dir;
-      if (!this.drag && travel < 2) return;
+      const along = dx * naturalSign() * dir;
 
       if (!this.drag) {
-        this.drag = { x: 0, last: performance.now(), v: 0, n: 0 };
+        // The first couple of pixels decide which of the two gestures this is,
+        // and it keeps that identity to the end. A wobble halfway through a
+        // dismissal must not turn it into a split.
+        if (Math.abs(along) < 2) return;
+        const split = along < 0;
+        if (!(split ? settings.splitOnSwipe : settings.dismissOnSwipe)) return;
+        this.drag = {
+          x: 0,
+          last: performance.now(),
+          v: 0,
+          n: 0,
+          split,
+          sign: split ? -1 : 1, // maps the gesture's own direction onto +travel
+        };
         this.panel.dataset.dragging = "1";
         this.panel.style.willChange = "transform, opacity";
       }
+      const travel = along * this.drag.sign;
       const now = performance.now();
       const dt = now - this.drag.last;
       this.drag.n++;
@@ -869,8 +889,10 @@
       const resisted = Math.pow(this.drag.x, 0.86) * 1.6;
       const progress = clamp(resisted / (commitPx * SWIPE_FADE_RATIO), 0, 1);
       this.panel.style.transform =
-        `translateX(${resisted * dir}px) scale(${1 - progress * 0.03})`;
-      this.panel.style.opacity = String(1 - progress * 0.35);
+        `translateX(${resisted * dir * this.drag.sign}px) scale(${1 - progress * 0.03})`;
+      // A dismissal is on its way out of existence, so it fades as it goes. A
+      // split is on its way to becoming a panel you keep, so it doesn't.
+      this.panel.style.opacity = String(this.drag.split ? 1 : 1 - progress * 0.35);
 
       // Commit the moment the gesture earns it, rather than when the events
       // stop arriving. macOS keeps delivering momentum wheel events for a few
@@ -890,10 +912,12 @@
         resisted > SWIPE_FLING_MIN_PX / sens;
       if (travelled || flung) {
         const velocity = this.drag.v;
+        const split = this.drag.split;
         clearTimeout(this._dragT);
         this.drag = null;
         this.panel.dataset.dragging = "0";
-        this.close({ from: "swipe", velocity });
+        if (split) this._splitFromSwipe();
+        else this.close({ from: "swipe", velocity });
         return;
       }
 
@@ -960,10 +984,46 @@
      * here; it puts the page in a tab beside this one instead.
      */
     _splitFallback() {
+      clearTimeout(this._splitSafetyT);
+      // Reachable from the rail's reply, from the swipe's safety net and from
+      // the shadow-DOM stand-in. Sending twice would open two tabs.
+      if (this._splitSent) return;
+      this._splitSent = true;
       const u = this.url();
       if (!u) return;
       send({ type: "peek:split", url: u });
       this.close({ from: "split" });
+    }
+
+    /**
+     * Split, asked for by swiping rather than by clicking the button.
+     *
+     * The request still goes through the rail frame, even though a wheel
+     * gesture grants no user activation and sidePanel.open() demands one. That
+     * frame is the only context that could ever hold activation, so asking it
+     * costs nothing and means a swipe behaves exactly like the button on any
+     * browser where the call does go through. Where it doesn't, the frame
+     * answers split-fallback and the peek lands where the button lands when it
+     * fails: the page in a tab beside this one.
+     */
+    _splitFromSwipe() {
+      if (this._splitting) return;
+      this._splitting = true;
+
+      const live =
+        this.splitSlot?.dataset.frame === "ready" && this.splitFrame?.contentWindow;
+      if (!live) return this._splitFallback();
+
+      try {
+        this.splitFrame.contentWindow.postMessage({ __peekRailCmd: "split" }, "*");
+      } catch {
+        return this._splitFallback();
+      }
+      // A frame that never answers would leave the pane parked mid-gesture.
+      clearTimeout(this._splitSafetyT);
+      this._splitSafetyT = setTimeout(() => {
+        if (this.state === "open") this._splitFallback();
+      }, 700);
     }
 
     /** The one action that creates persistent state. */
@@ -1052,6 +1112,7 @@
       clearTimeout(this._loaderT);
       clearTimeout(this._dragT);
       clearTimeout(this._railT);
+      clearTimeout(this._splitSafetyT);
       window.removeEventListener("message", this._onMsg);
       lockScroll(false);
       try {

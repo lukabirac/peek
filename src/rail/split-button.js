@@ -36,7 +36,7 @@ const toParent = (kind, extra) => {
   } catch {}
 };
 
-btn.addEventListener("click", () => {
+function attemptSplit() {
   // open() must be the first statement that touches an API — anything awaited
   // ahead of it would consume the activation before it gets to check.
   if (!Number.isFinite(tabId) || !chrome.sidePanel) return toParent("split-fallback");
@@ -53,7 +53,9 @@ btn.addEventListener("click", () => {
   Promise.resolve(opening)
     .then(() => toParent("split-ok"))
     .catch((e) => toParent("split-fallback", { error: String(e?.message || e) }));
-});
+}
+
+btn.addEventListener("click", attemptSplit);
 
 // :hover doesn't cross a document boundary, so the tooltip — which is drawn by
 // the host's shadow DOM — has to be told when the pointer is here.
@@ -69,8 +71,16 @@ window.addEventListener("keydown", (e) => {
 window.addEventListener("message", (e) => {
   if (e.source !== parent) return;
   const d = e.data;
-  if (!d || d.__peekRailCmd !== "url") return;
-  currentURL = String(d.url || "");
+  if (!d) return;
+  if (d.__peekRailCmd === "url") {
+    currentURL = String(d.url || "");
+    return;
+  }
+  // The swipe-to-split gesture. It runs the identical attempt, from the
+  // identical context, even though a wheel gesture grants no activation of its
+  // own — if the call ever can go through, it should, and when it can't the
+  // host hears split-fallback and degrades exactly as a failed click does.
+  if (d.__peekRailCmd === "split") attemptSplit();
 });
 
 // Tell the host we are live, so it can push the current URL down and stop

@@ -159,6 +159,15 @@ error page:
 `splitMode: "window"` in settings restores the older behaviour: halve the current
 window and open the page in a new one beside it.
 
+**Swiping the other way** — against the dismiss direction — asks for a split
+too. The pane travels with your fingers and does not fade, because it isn't
+leaving. One caveat, and it is the same activation rule as above: a wheel
+gesture grants no user activation, so `sidePanel.open()` will refuse it. The
+swipe still routes its request through the rail frame, so it behaves exactly
+like the button anywhere the call is permitted; where it isn't, it degrades
+through the same path a failed click takes and puts the page in a tab beside
+this one. For the panel itself, use the button or <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd>.
+
 ### Keyboard
 
 **Inside an open Peek:**
@@ -207,6 +216,7 @@ options.
 | `splitMode` | `sidePanel` | `sidePanel` (one window) or `window` (two tiled windows). |
 | `prefetch` | on | Start loading on pointer-down rather than click. |
 | `dismissOnSwipe` | on | Two-finger swipe to dismiss. Rubber-banded, with a fling threshold. |
+| `splitOnSwipe` | on | The same swipe reversed splits instead of dismissing. Subject to the activation limit below. |
 | `naturalScrolling` | on | Match your system's trackpad setting. It decides which way a swipe is *reported*, and no API exposes it — get it wrong and the pane runs away from your fingers. |
 | `swipeDirection` | `right` | The direction you move your fingers to dismiss. The pane always travels with them. `right` \| `left`. |
 | `swipeSensitivity` | `1` | How far the gesture must travel before the Peek lets go, `0.5`–`2`. It divides the threshold rather than scaling the motion, so the pane moves the same distance per finger — it just gives up sooner. At `1` that's ~149 px; at `2`, ~66 px. |

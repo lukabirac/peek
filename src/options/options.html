@@ -212,19 +212,26 @@
 
         <label class="row">
           <div class="txt">
-            <span class="t">Swipe the other way to split</span>
+            <span class="t">Swiping the other way</span>
             <span class="d">
-              The same gesture reversed sends the page alongside the tab it
-              came from instead of throwing it away. It doesn't fade as it
-              moves, because it isn't leaving. Where it lands depends on
-              <strong>Where a split opens</strong> above — and on a swipe the
-              side panel is usually out of reach, since Chromium only opens it
-              in response to a click or a keystroke, so it falls back to a tab
-              beside this one. The button and <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd>
-              still get the panel itself.
+              The same gesture reversed keeps the page instead of throwing it
+              away, so it doesn't fade as it moves.
+              <strong>Open as a tab</strong> promotes it, exactly as the ⛶
+              button does. <strong>Split</strong> asks for the side panel — but
+              a swipe is not a click, and Chromium only opens that panel in
+              response to a click or a keystroke, so in practice it usually
+              lands as a tab beside this one anyway. Pick Split if you use
+              <code>splitMode: window</code>, or if you'd rather it try; pick
+              Open as a tab to skip straight to the honest outcome. The ▯▯
+              button and <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd> still get the
+              real panel.
             </span>
           </div>
-          <input type="checkbox" data-key="splitOnSwipe" class="switch" />
+          <select data-key="swipeOpposite" class="select">
+            <option value="split">Split with this tab</option>
+            <option value="promote">Open as a tab</option>
+            <option value="off">Nothing</option>
+          </select>
         </label>
 
         <label class="row">

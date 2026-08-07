@@ -159,14 +159,25 @@ error page:
 `splitMode: "window"` in settings restores the older behaviour: halve the current
 window and open the page in a new one beside it.
 
-**Swiping the other way** — against the dismiss direction — asks for a split
-too. The pane travels with your fingers and does not fade, because it isn't
-leaving. One caveat, and it is the same activation rule as above: a wheel
-gesture grants no user activation, so `sidePanel.open()` will refuse it. The
-swipe still routes its request through the rail frame, so it behaves exactly
-like the button anywhere the call is permitted; where it isn't, it degrades
-through the same path a failed click takes and puts the page in a tab beside
-this one. For the panel itself, use the button or <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd>.
+**Swiping the other way** — against the dismiss direction — keeps the page
+instead of throwing it away. The pane travels with your fingers and does not
+fade, because it isn't leaving. What happens when it commits is yours to choose,
+under `swipeOpposite`:
+
+| | |
+|---|---|
+| `split` | Ask for the side panel, as the ▯▯ button does. |
+| `promote` | Open it as a tab, as the ⛶ button does. |
+| `off` | Only the dismiss direction is a gesture. |
+
+Worth knowing before you pick: **a swipe is not a click**, and the same
+activation rule from above applies — `sidePanel.open()` is refused for a wheel
+gesture, so `split` usually degrades to a tab beside this one regardless. It is
+still the right choice if you use `splitMode: "window"`, which needs no
+activation, or if you would rather it try. Choose `promote` to skip straight to
+the outcome you were going to get. The ▯▯ button and
+<kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd> carry real activation and still open the
+panel itself.
 
 ### Keyboard
 
@@ -216,7 +227,7 @@ options.
 | `splitMode` | `sidePanel` | `sidePanel` (one window) or `window` (two tiled windows). |
 | `prefetch` | on | Start loading on pointer-down rather than click. |
 | `dismissOnSwipe` | on | Two-finger swipe to dismiss. Rubber-banded, with a fling threshold. |
-| `splitOnSwipe` | on | The same swipe reversed splits instead of dismissing. Subject to the activation limit below. |
+| `swipeOpposite` | `split` | What the swipe against the dismiss direction does. `split` \| `promote` \| `off`. |
 | `naturalScrolling` | on | Match your system's trackpad setting. It decides which way a swipe is *reported*, and no API exposes it — get it wrong and the pane runs away from your fingers. |
 | `swipeDirection` | `right` | The direction you move your fingers to dismiss. The pane always travels with them. `right` \| `left`. |
 | `swipeSensitivity` | `1` | How far the gesture must travel before the Peek lets go, `0.5`–`2`. It divides the threshold rather than scaling the motion, so the pane moves the same distance per finger — it just gives up sooner. At `1` that's ~149 px; at `2`, ~66 px. |

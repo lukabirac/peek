@@ -33,7 +33,7 @@
     holdDelay: 450, // ms of stillness before a press counts as a hold
     reducedEffects: false, // drop backdrop blur on weak GPUs
     dismissOnSwipe: true,
-    splitOnSwipe: true, // the same gesture the other way splits instead
+    swipeOpposite: "split", // 'split' | 'promote' | 'off' — the gesture reversed
     swipeDirection: "right", // 'right' | 'left' — which way you swipe, and go
     naturalScrolling: true, // does a rightward swipe report a negative deltaX?
     swipeSensitivity: 1, // 0.5 deliberate … 2 twitchy
@@ -285,6 +285,25 @@
    * pane ran opposite their fingers, because the deltaX they produce is the
    * opposite of the one the single sign assumed.
    */
+  /**
+   * What the swipe against the dismiss direction does.
+   *
+   * Split is the more ambitious of the two and often can't be honoured: a
+   * wheel gesture carries no user activation, so Chromium refuses to open the
+   * side panel for it and the request degrades to a tab beside this one. That
+   * degradation is why promote is offered as a first-class choice rather than
+   * something you arrive at by accident — if a tab is what you actually want,
+   * asking for it outright is faster and lands exactly where you expect.
+   */
+  const swipeOppositeAction = () => {
+    // Migrated from the boolean this replaced, so anyone who had switched the
+    // gesture off doesn't find it back under a new name.
+    if (settings.swipeOpposite == null)
+      return settings.splitOnSwipe === false ? "off" : "split";
+    const v = settings.swipeOpposite;
+    return v === "promote" || v === "off" ? v : "split";
+  };
+
   const dismissSign = () => (settings.swipeDirection === "left" ? -1 : 1);
   const naturalSign = () => (settings.naturalScrolling === false ? 1 : -1);
 
@@ -532,7 +551,7 @@
       // two a given swipe is and re-checks that its own setting is on.
       // Either gesture is reason enough to listen; _wheel decides which of the
       // two a given swipe is and re-checks that its own setting is on.
-      if (settings.dismissOnSwipe || settings.splitOnSwipe) {
+      if (settings.dismissOnSwipe || swipeOppositeAction() !== "off") {
         this.dlg.addEventListener("wheel", (e) => this._wheel(e.deltaX, e.deltaY), {
           passive: true,
         });
@@ -859,15 +878,16 @@
         // and it keeps that identity to the end. A wobble halfway through a
         // dismissal must not turn it into a split.
         if (Math.abs(along) < 2) return;
-        const split = along < 0;
-        if (!(split ? settings.splitOnSwipe : settings.dismissOnSwipe)) return;
+        const opposite = along < 0;
+        const act = opposite ? swipeOppositeAction() : "dismiss";
+        if (opposite ? act === "off" : !settings.dismissOnSwipe) return;
         this.drag = {
           x: 0,
           last: performance.now(),
           v: 0,
           n: 0,
-          split,
-          sign: split ? -1 : 1, // maps the gesture's own direction onto +travel
+          act,
+          sign: opposite ? -1 : 1, // maps the gesture's own direction onto +travel
         };
         this.panel.dataset.dragging = "1";
         this.panel.style.willChange = "transform, opacity";
@@ -890,9 +910,11 @@
       const progress = clamp(resisted / (commitPx * SWIPE_FADE_RATIO), 0, 1);
       this.panel.style.transform =
         `translateX(${resisted * dir * this.drag.sign}px) scale(${1 - progress * 0.03})`;
-      // A dismissal is on its way out of existence, so it fades as it goes. A
-      // split is on its way to becoming a panel you keep, so it doesn't.
-      this.panel.style.opacity = String(this.drag.split ? 1 : 1 - progress * 0.35);
+      // A dismissal is on its way out of existence, so it fades as it goes.
+      // The other two are on their way to becoming something you keep — a
+      // panel or a tab — so they don't.
+      this.panel.style.opacity =
+        String(this.drag.act === "dismiss" ? 1 - progress * 0.35 : 1);
 
       // Commit the moment the gesture earns it, rather than when the events
       // stop arriving. macOS keeps delivering momentum wheel events for a few
@@ -912,11 +934,12 @@
         resisted > SWIPE_FLING_MIN_PX / sens;
       if (travelled || flung) {
         const velocity = this.drag.v;
-        const split = this.drag.split;
+        const act = this.drag.act;
         clearTimeout(this._dragT);
         this.drag = null;
         this.panel.dataset.dragging = "0";
-        if (split) this._splitFromSwipe();
+        if (act === "split") this._splitFromSwipe();
+        else if (act === "promote") this.promote();
         else this.close({ from: "swipe", velocity });
         return;
       }

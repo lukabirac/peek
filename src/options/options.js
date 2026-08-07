@@ -10,7 +10,7 @@ const DEFAULTS = {
   holdDelay: 450,
   reducedEffects: false,
   dismissOnSwipe: true,
-  splitOnSwipe: true,
+  swipeOpposite: "split",
   swipeDirection: "right",
   naturalScrolling: true,
   swipeSensitivity: 1,
@@ -79,6 +79,10 @@ function paintReadout(key, value) {
 async function load() {
   const { settings } = await chrome.storage.sync.get("settings");
   const s = { ...DEFAULTS, ...(settings || {}) };
+  // Carried over from the boolean this replaced, so a gesture someone had
+  // switched off doesn't come back under a new name. Mirrors peek-host.js.
+  if (settings && settings.swipeOpposite == null && settings.splitOnSwipe === false)
+    s.swipeOpposite = "off";
   for (const el of fields) toUI(el, s[el.dataset.key]);
   for (const key of Object.keys(READOUTS)) paintReadout(key, s[key]);
 }

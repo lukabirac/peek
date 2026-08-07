@@ -55,6 +55,19 @@ if (!url || !/^https?:\/\//i.test(url)) {
   try {
     const port = chrome.runtime.connect({ name: "peek-sidepanel" });
     port.postMessage({ type: "alive", url });
+    // Which window this panel is in — the one fact the worker cannot work out
+    // for itself, since a side panel has no tab and so the port's sender
+    // carries no window either. It matters because opening the panel needs a
+    // user gesture but re-pointing an open one does not: a swipe that would
+    // otherwise be refused can be honoured in a window already showing this.
+    chrome.windows.getCurrent().then(
+      (w) => {
+        try {
+          port.postMessage({ type: "window", windowId: w.id });
+        } catch {}
+      },
+      () => {}
+    );
   } catch {}
 
   const loader = document.createElement("div");

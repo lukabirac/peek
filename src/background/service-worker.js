@@ -157,8 +157,8 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 
     case "peek:split":
       if (tab && msg.url) {
-        splitWith(tab, msg.url).then(() =>
-          reply({ ok: true, sidePanelError: lastSidePanelError })
+        splitWith(tab, msg.url, { gestureless: !!msg.gestureless }).then((r) =>
+          reply({ ...r, sidePanelError: lastSidePanelError })
         );
         return true;
       }
@@ -208,7 +208,14 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
  * places: inside the rail's extension frame (src/rail/split-button.js) and
  * inside a commands.onCommand handler. Both call open() themselves. Anything
  * that reaches splitWith() below has already missed that window, so it does
- * not try — it would only stall and then fail. It opens a tab beside instead.
+ * not try — it would only stall and then fail.
+ *
+ * What it can do instead is notice that the panel is already open in this
+ * window and simply re-aim it, which setOptions does with no gesture at all.
+ * That is the difference between a swipe splitting for real and a swipe
+ * producing a tab, and it is why panel liveness is tracked (livePanels).
+ * With no panel to reuse and no gesture to spend, a caller that asked for
+ * gestureless handling is told so rather than handed a tab.
  *
  * The feature detection below is deliberate: if a future Aside exposes a
  * split API, this starts using it with no other change.
@@ -223,7 +230,7 @@ function nativeSplitAvailable() {
   );
 }
 
-async function splitWith(tab, url) {
+async function splitWith(tab, url, opts = {}) {
   const { splitMode } = await getSettings();
 
   if (nativeSplitAvailable()) {
@@ -240,17 +247,33 @@ async function splitWith(tab, url) {
       } else {
         await chrome.splitView.create({ tabIds: [tab.id, created.id] });
       }
-      return;
+      return { ok: true, via: "native" };
     } catch {
       /* fall through */
     }
   }
 
-  if (splitMode === "window") return tileWindows(tab, url);
+  if (splitMode === "window") {
+    await tileWindows(tab, url);
+    return { ok: true, via: "window" };
+  }
 
-  // No activation to spend here — see the note above. Never rearrange the
-  // user's windows unless they asked for that mode explicitly; just put the
-  // page next to the tab it came from.
+  // The panel is already on screen in this window, so there is nothing to
+  // open — aiming it at the page is a plain setOptions call, and that has
+  // never needed a gesture. This is the path a swipe can actually take.
+  if (panelLiveIn(tab.windowId)) {
+    await stageSidePanel(tab.id, url);
+    return { ok: true, via: "panel" };
+  }
+
+  // No activation to spend here — see the note above — and no panel to reuse,
+  // so the side panel is genuinely out of reach. A caller that had a gesture
+  // to spend and still ended up here wants the page somewhere; one that never
+  // had one would rather be told than be handed a tab it didn't ask for.
+  if (opts.gestureless) return { ok: false, needsGesture: true };
+
+  // Never rearrange the user's windows unless they asked for that mode
+  // explicitly; just put the page next to the tab it came from.
   await chrome.tabs.create({
     url,
     index: tab.index + 1,
@@ -258,6 +281,7 @@ async function splitWith(tab, url) {
     windowId: tab.windowId,
     openerTabId: tab.id,
   });
+  return { ok: true, via: "tab" };
 }
 
 let lastSidePanelError = null;
@@ -338,11 +362,41 @@ async function disarmSidePanel() {
   } catch {}
 }
 
+/*
+ * Which windows currently have this extension's panel on screen.
+ *
+ * Nothing in the API can be asked this, and it decides whether a split without
+ * a user gesture is possible at all: opening the panel needs activation,
+ * pointing an already-open one at another page does not. So a live panel is
+ * the whole difference between a swipe producing a real split and a swipe
+ * producing a consolation tab.
+ */
+const livePanels = new Map(); // windowId → number of panel documents open there
+
+const panelLiveIn = (windowId) => (livePanels.get(windowId) || 0) > 0;
+
 // The panel holds a port open for as long as it is on screen; the rule lives
-// exactly as long as that port does.
+// exactly as long as the last of those ports does.
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "peek-sidepanel") return;
-  port.onDisconnect.addListener(() => disarmSidePanel());
+  let windowId = null;
+
+  port.onMessage.addListener((m) => {
+    if (m?.type !== "window" || typeof m.windowId !== "number") return;
+    if (windowId !== null) return; // a panel document only ever reports once
+    windowId = m.windowId;
+    livePanels.set(windowId, (livePanels.get(windowId) || 0) + 1);
+  });
+
+  port.onDisconnect.addListener(() => {
+    if (windowId !== null) {
+      const left = (livePanels.get(windowId) || 1) - 1;
+      if (left > 0) livePanels.set(windowId, left);
+      else livePanels.delete(windowId);
+    }
+    // Two windows can each hold a panel, and the rule is shared between them.
+    if (!livePanels.size) disarmSidePanel();
+  });
 });
 
 /** Legacy behaviour: halve this window and put the page in a new one beside it. */

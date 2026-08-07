@@ -295,8 +295,20 @@ dialog::backdrop {
 /* :hover reaches an ancestor even when the pointer is inside a child frame,
    which is what keeps the split button's tooltip working. */
 [data-tip]:hover::after,
-.orb-slot[data-hover="1"]::after { opacity: 1; transform: translateY(-50%); }
+.orb-slot[data-hover="1"]::after,
+.orb-slot[data-nudge="1"]::after { opacity: 1; transform: translateY(-50%); }
 .orb-slot[data-frame="ready"] .orb::after { content: none; }
+
+/* A swipe can ask for a split but cannot finish one — Chromium only opens the
+   side panel for a click. So the button says so, and moves enough to be found
+   without the peek having to grow a notification of its own. */
+.orb-slot[data-nudge="1"] { animation: peek-nudge 1.5s var(--ease-out) 2; }
+@keyframes peek-nudge {
+  0%, 46%, 100% { transform: none; }
+  10% { transform: scale(1.16); }
+  22% { transform: scale(0.97); }
+  34% { transform: scale(1.06); }
+}
 
 /* Narrow windows have no gutter to spare, so the rail tucks into the pane's
    own top-right corner and the tooltips are dropped. */
@@ -396,5 +408,7 @@ dialog::backdrop {
   .loader .spinner { animation-duration: 1.6s; }
   .orb { transition: background-color 120ms linear; }
   .orb:hover, .orb:active { transform: none; }
+  /* The pinned tooltip carries the message on its own. */
+  .orb-slot[data-nudge="1"] { animation: none; }
 }
 `;

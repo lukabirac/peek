@@ -166,18 +166,24 @@ under `swipeOpposite`:
 
 | | |
 |---|---|
-| `split` | Ask for the side panel, as the ▯▯ button does. |
+| `split` | Send it beside this tab, as the ▯▯ button does. |
 | `promote` | Open it as a tab, as the ⛶ button does. |
 | `off` | Only the dismiss direction is a gesture. |
 
-Worth knowing before you pick: **a swipe is not a click**, and the same
-activation rule from above applies — `sidePanel.open()` is refused for a wheel
-gesture, so `split` usually degrades to a tab beside this one regardless. It is
-still the right choice if you use `splitMode: "window"`, which needs no
-activation, or if you would rather it try. Choose `promote` to skip straight to
-the outcome you were going to get. The ▯▯ button and
-<kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd> carry real activation and still open the
-panel itself.
+`split` and the activation rule are worth a paragraph, because **a swipe is not
+a click**: `sidePanel.open()` is refused for a wheel gesture and no context in
+the extension can talk it round. But opening the panel is only half the API.
+Pointing a panel that is *already* open at another page is `setOptions`, which
+has never needed a gesture — so the worker tracks whether the panel is live in
+this window, and if it is, the swipe splits for real and instantly. In practice
+that means the first split of a session takes a click and every one after it
+doesn't. `splitMode: "window"` needs no gesture at all and always completes.
+
+When there is no panel to reuse, the swipe **stops** rather than substituting an
+action you didn't ask for: the Peek stays open and the ▯▯ button pulses with
+*Click to finish the split*. That click, and
+<kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd>, carry real activation and open the panel
+themselves.
 
 ### Keyboard
 

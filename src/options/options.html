@@ -217,14 +217,15 @@
               The same gesture reversed keeps the page instead of throwing it
               away, so it doesn't fade as it moves.
               <strong>Open as a tab</strong> promotes it, exactly as the ⛶
-              button does. <strong>Split</strong> asks for the side panel — but
-              a swipe is not a click, and Chromium only opens that panel in
-              response to a click or a keystroke, so in practice it usually
-              lands as a tab beside this one anyway. Pick Split if you use
-              <code>splitMode: window</code>, or if you'd rather it try; pick
-              Open as a tab to skip straight to the honest outcome. The ▯▯
-              button and <kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd> still get the
-              real panel.
+              button does. <strong>Split</strong> sends it beside this tab —
+              instantly if the side panel is already open, which after your
+              first split of the session it usually is. If it isn't, the swipe
+              can't finish the job on its own: Chromium opens that panel only
+              for a click or a keystroke, never for a swipe. Rather than hand
+              you a tab you didn't ask for, the Peek stays up and the ▯▯ button
+              pulses for the one click it needs. Two tiled windows need no
+              click at all — with <em>Where a split opens</em> set to that, the
+              swipe always completes.
             </span>
           </div>
           <select data-key="swipeOpposite" class="select">

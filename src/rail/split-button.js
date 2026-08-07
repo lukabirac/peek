@@ -36,6 +36,9 @@ const toParent = (kind, extra) => {
   } catch {}
 };
 
+// Only ever called from the click handler below. A swipe cannot borrow it —
+// activation belongs to the gesture, not to the frame — so the swipe path asks
+// the worker to re-aim an open panel instead. See peek-host's _splitFromSwipe.
 function attemptSplit() {
   // open() must be the first statement that touches an API — anything awaited
   // ahead of it would consume the activation before it gets to check.
@@ -72,15 +75,7 @@ window.addEventListener("message", (e) => {
   if (e.source !== parent) return;
   const d = e.data;
   if (!d) return;
-  if (d.__peekRailCmd === "url") {
-    currentURL = String(d.url || "");
-    return;
-  }
-  // The swipe-to-split gesture. It runs the identical attempt, from the
-  // identical context, even though a wheel gesture grants no activation of its
-  // own — if the call ever can go through, it should, and when it can't the
-  // host hears split-fallback and degrades exactly as a failed click does.
-  if (d.__peekRailCmd === "split") attemptSplit();
+  if (d.__peekRailCmd === "url") currentURL = String(d.url || "");
 });
 
 // Tell the host we are live, so it can push the current URL down and stop

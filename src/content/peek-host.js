@@ -652,7 +652,7 @@
           break;
         case "split-ok":
           // The panel is up; the peek has served its purpose.
-          clearTimeout(this._splitSafetyT);
+          this._splitSent = true;
           this.close({ from: "split" });
           break;
         case "split-fallback":
@@ -1007,9 +1007,8 @@
      * here; it puts the page in a tab beside this one instead.
      */
     _splitFallback() {
-      clearTimeout(this._splitSafetyT);
-      // Reachable from the rail's reply, from the swipe's safety net and from
-      // the shadow-DOM stand-in. Sending twice would open two tabs.
+      // Reachable from the rail's reply and from the shadow-DOM stand-in.
+      // Sending twice would open two tabs.
       if (this._splitSent) return;
       this._splitSent = true;
       const u = this.url();
@@ -1021,32 +1020,54 @@
     /**
      * Split, asked for by swiping rather than by clicking the button.
      *
-     * The request still goes through the rail frame, even though a wheel
-     * gesture grants no user activation and sidePanel.open() demands one. That
-     * frame is the only context that could ever hold activation, so asking it
-     * costs nothing and means a swipe behaves exactly like the button on any
-     * browser where the call does go through. Where it doesn't, the frame
-     * answers split-fallback and the peek lands where the button lands when it
-     * fails: the page in a tab beside this one.
+     * A wheel gesture carries no user activation — the spec's list of events
+     * that grant it has no wheel in it — and Chromium will not open the side
+     * panel without one. No context in the extension can talk it round, so the
+     * rail frame is not asked; it would only stall and fail, which is exactly
+     * what used to turn this gesture into a tab.
+     *
+     * What does work with no gesture is aiming a panel that is *already* open
+     * at another page, and that is what the worker tries first. So the second
+     * split of a session onwards — panel still up from the first — this is the
+     * real thing. Tiled windows and any future native split need no gesture
+     * either, and go through untouched.
+     *
+     * With no panel to reuse, the swipe stops here rather than quietly
+     * substituting an action nobody asked for: the peek stays open and the
+     * split button asks for the one click Chromium is holding out for.
      */
     _splitFromSwipe() {
       if (this._splitting) return;
+      const u = this.url();
+      if (!u) return;
       this._splitting = true;
 
-      const live =
-        this.splitSlot?.dataset.frame === "ready" && this.splitFrame?.contentWindow;
-      if (!live) return this._splitFallback();
+      send({ type: "peek:split", url: u, gestureless: true }).then((r) => {
+        this._splitting = false;
+        if (r && r.ok) {
+          // Nothing else may send a second one and open a stray tab.
+          this._splitSent = true;
+          return this.close({ from: "split" });
+        }
+        this._needsGesture();
+      });
+    }
 
-      try {
-        this.splitFrame.contentWindow.postMessage({ __peekRailCmd: "split" }, "*");
-      } catch {
-        return this._splitFallback();
-      }
-      // A frame that never answers would leave the pane parked mid-gesture.
-      clearTimeout(this._splitSafetyT);
-      this._splitSafetyT = setTimeout(() => {
-        if (this.state === "open") this._splitFallback();
-      }, 700);
+    /**
+     * The swipe got as far as a swipe can. Point at the control that finishes
+     * it — a click lands inside the rail's extension frame, which is the one
+     * context whose activation sidePanel.open() will accept.
+     */
+    _needsGesture() {
+      const slot = this.splitSlot;
+      if (this.state !== "open" || !slot) return;
+      clearTimeout(this._nudgeT);
+      slot.dataset.tip = "Click to finish the split";
+      slot.dataset.nudge = "1";
+      this._nudgeT = setTimeout(() => {
+        slot.dataset.nudge = "0";
+        slot.dataset.tip = "Split with This Tab";
+      }, 3400);
     }
 
     /** The one action that creates persistent state. */
@@ -1135,7 +1156,7 @@
       clearTimeout(this._loaderT);
       clearTimeout(this._dragT);
       clearTimeout(this._railT);
-      clearTimeout(this._splitSafetyT);
+      clearTimeout(this._nudgeT);
       window.removeEventListener("message", this._onMsg);
       lockScroll(false);
       try {

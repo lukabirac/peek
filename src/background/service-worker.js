@@ -19,7 +19,7 @@ const DEFAULTS = {
   holdDelay: 450,
   reducedEffects: false,
   dismissOnSwipe: true,
-  swipeOpposite: "split",
+  swipeOpposite: "promote",
   swipeDirection: "right",
   naturalScrolling: true,
   swipeSensitivity: 1,
@@ -157,7 +157,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 
     case "peek:split":
       if (tab && msg.url) {
-        splitWith(tab, msg.url, { gestureless: !!msg.gestureless }).then((r) =>
+        splitWith(tab, msg.url).then((r) =>
           reply({ ...r, sidePanelError: lastSidePanelError })
         );
         return true;
@@ -211,11 +211,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
  * not try — it would only stall and then fail.
  *
  * What it can do instead is notice that the panel is already open in this
- * window and simply re-aim it, which setOptions does with no gesture at all.
- * That is the difference between a swipe splitting for real and a swipe
- * producing a tab, and it is why panel liveness is tracked (livePanels).
- * With no panel to reuse and no gesture to spend, a caller that asked for
- * gestureless handling is told so rather than handed a tab.
+ * window and simply re-aim it, which setOptions does with no gesture at all —
+ * so a failed open() lands the page in the panel the user already has rather
+ * than in a tab beside it. That is what livePanels is for.
  *
  * The feature detection below is deliberate: if a future Aside exposes a
  * split API, this starts using it with no other change.
@@ -230,7 +228,7 @@ function nativeSplitAvailable() {
   );
 }
 
-async function splitWith(tab, url, opts = {}) {
+async function splitWith(tab, url) {
   const { splitMode } = await getSettings();
 
   if (nativeSplitAvailable()) {
@@ -260,17 +258,12 @@ async function splitWith(tab, url, opts = {}) {
 
   // The panel is already on screen in this window, so there is nothing to
   // open — aiming it at the page is a plain setOptions call, and that has
-  // never needed a gesture. This is the path a swipe can actually take.
+  // never needed a gesture. Only reached when the button's own open() failed,
+  // which is rare, but re-aiming an open panel beats spawning a tab next to it.
   if (panelLiveIn(tab.windowId)) {
     await stageSidePanel(tab.id, url);
     return { ok: true, via: "panel" };
   }
-
-  // No activation to spend here — see the note above — and no panel to reuse,
-  // so the side panel is genuinely out of reach. A caller that had a gesture
-  // to spend and still ended up here wants the page somewhere; one that never
-  // had one would rather be told than be handed a tab it didn't ask for.
-  if (opts.gestureless) return { ok: false, needsGesture: true };
 
   // Never rearrange the user's windows unless they asked for that mode
   // explicitly; just put the page next to the tab it came from.

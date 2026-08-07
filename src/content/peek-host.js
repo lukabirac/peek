@@ -33,7 +33,7 @@
     holdDelay: 450, // ms of stillness before a press counts as a hold
     reducedEffects: false, // drop backdrop blur on weak GPUs
     dismissOnSwipe: true,
-    swipeOpposite: "split", // 'split' | 'promote' | 'off' — the gesture reversed
+    swipeOpposite: "promote", // 'promote' | 'off' — the gesture reversed
     swipeDirection: "right", // 'right' | 'left' — which way you swipe, and go
     naturalScrolling: true, // does a rightward swipe report a negative deltaX?
     swipeSensitivity: 1, // 0.5 deliberate … 2 twitchy
@@ -286,22 +286,22 @@
    * opposite of the one the single sign assumed.
    */
   /**
-   * What the swipe against the dismiss direction does.
+   * What the swipe against the dismiss direction does: promote, or nothing.
    *
-   * Split is the more ambitious of the two and often can't be honoured: a
-   * wheel gesture carries no user activation, so Chromium refuses to open the
-   * side panel for it and the request degrades to a tab beside this one. That
-   * degradation is why promote is offered as a first-class choice rather than
-   * something you arrive at by accident — if a tab is what you actually want,
-   * asking for it outright is faster and lands exactly where you expect.
+   * Splitting used to be offered here and isn't any more. A wheel gesture
+   * carries no user activation and Chromium opens the side panel for nothing
+   * else, so the gesture could only ever half-work — instant when a panel
+   * happened to be open already, and a request for a click when it wasn't.
+   * A gesture that does two different things depending on invisible state is
+   * worse than one that does the same thing every time. The ▯▯ button and
+   * ⌥⇧S still split, and they always could.
    */
   const swipeOppositeAction = () => {
-    // Migrated from the boolean this replaced, so anyone who had switched the
-    // gesture off doesn't find it back under a new name.
+    // "split" is migrated rather than dropped: the swipe already landed as a
+    // tab whenever the panel wasn't open, so promote is where it was going.
     if (settings.swipeOpposite == null)
-      return settings.splitOnSwipe === false ? "off" : "split";
-    const v = settings.swipeOpposite;
-    return v === "promote" || v === "off" ? v : "split";
+      return settings.splitOnSwipe === false ? "off" : "promote";
+    return settings.swipeOpposite === "off" ? "off" : "promote";
   };
 
   const dismissSign = () => (settings.swipeDirection === "left" ? -1 : 1);
@@ -938,8 +938,7 @@
         clearTimeout(this._dragT);
         this.drag = null;
         this.panel.dataset.dragging = "0";
-        if (act === "split") this._splitFromSwipe();
-        else if (act === "promote") this.promote();
+        if (act === "promote") this.promote();
         else this.close({ from: "swipe", velocity });
         return;
       }
@@ -1015,59 +1014,6 @@
       if (!u) return;
       send({ type: "peek:split", url: u });
       this.close({ from: "split" });
-    }
-
-    /**
-     * Split, asked for by swiping rather than by clicking the button.
-     *
-     * A wheel gesture carries no user activation — the spec's list of events
-     * that grant it has no wheel in it — and Chromium will not open the side
-     * panel without one. No context in the extension can talk it round, so the
-     * rail frame is not asked; it would only stall and fail, which is exactly
-     * what used to turn this gesture into a tab.
-     *
-     * What does work with no gesture is aiming a panel that is *already* open
-     * at another page, and that is what the worker tries first. So the second
-     * split of a session onwards — panel still up from the first — this is the
-     * real thing. Tiled windows and any future native split need no gesture
-     * either, and go through untouched.
-     *
-     * With no panel to reuse, the swipe stops here rather than quietly
-     * substituting an action nobody asked for: the peek stays open and the
-     * split button asks for the one click Chromium is holding out for.
-     */
-    _splitFromSwipe() {
-      if (this._splitting) return;
-      const u = this.url();
-      if (!u) return;
-      this._splitting = true;
-
-      send({ type: "peek:split", url: u, gestureless: true }).then((r) => {
-        this._splitting = false;
-        if (r && r.ok) {
-          // Nothing else may send a second one and open a stray tab.
-          this._splitSent = true;
-          return this.close({ from: "split" });
-        }
-        this._needsGesture();
-      });
-    }
-
-    /**
-     * The swipe got as far as a swipe can. Point at the control that finishes
-     * it — a click lands inside the rail's extension frame, which is the one
-     * context whose activation sidePanel.open() will accept.
-     */
-    _needsGesture() {
-      const slot = this.splitSlot;
-      if (this.state !== "open" || !slot) return;
-      clearTimeout(this._nudgeT);
-      slot.dataset.tip = "Click to finish the split";
-      slot.dataset.nudge = "1";
-      this._nudgeT = setTimeout(() => {
-        slot.dataset.nudge = "0";
-        slot.dataset.tip = "Split with This Tab";
-      }, 3400);
     }
 
     /** The one action that creates persistent state. */
@@ -1156,7 +1102,6 @@
       clearTimeout(this._loaderT);
       clearTimeout(this._dragT);
       clearTimeout(this._railT);
-      clearTimeout(this._nudgeT);
       window.removeEventListener("message", this._onMsg);
       lockScroll(false);
       try {

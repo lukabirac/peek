@@ -10,7 +10,7 @@ const DEFAULTS = {
   holdDelay: 450,
   reducedEffects: false,
   dismissOnSwipe: true,
-  swipeOpposite: "split",
+  swipeOpposite: "promote",
   swipeDirection: "right",
   naturalScrolling: true,
   swipeSensitivity: 1,
@@ -79,10 +79,12 @@ function paintReadout(key, value) {
 async function load() {
   const { settings } = await chrome.storage.sync.get("settings");
   const s = { ...DEFAULTS, ...(settings || {}) };
-  // Carried over from the boolean this replaced, so a gesture someone had
-  // switched off doesn't come back under a new name. Mirrors peek-host.js.
+  // Two rounds of history to carry, both so that a gesture nobody wants
+  // doesn't reappear and so the select is never left showing a value it has
+  // no option for. Mirrors swipeOppositeAction() in peek-host.js.
   if (settings && settings.swipeOpposite == null && settings.splitOnSwipe === false)
     s.swipeOpposite = "off";
+  if (s.swipeOpposite !== "off") s.swipeOpposite = "promote";
   for (const el of fields) toUI(el, s[el.dataset.key]);
   for (const key of Object.keys(READOUTS)) paintReadout(key, s[key]);
 }

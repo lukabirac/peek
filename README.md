@@ -166,24 +166,17 @@ under `swipeOpposite`:
 
 | | |
 |---|---|
-| `split` | Send it beside this tab, as the ▯▯ button does. |
 | `promote` | Open it as a tab, as the ⛶ button does. |
 | `off` | Only the dismiss direction is a gesture. |
 
-`split` and the activation rule are worth a paragraph, because **a swipe is not
-a click**: `sidePanel.open()` is refused for a wheel gesture and no context in
-the extension can talk it round. But opening the panel is only half the API.
-Pointing a panel that is *already* open at another page is `setOptions`, which
-has never needed a gesture — so the worker tracks whether the panel is live in
-this window, and if it is, the swipe splits for real and instantly. In practice
-that means the first split of a session takes a click and every one after it
-doesn't. `splitMode: "window"` needs no gesture at all and always completes.
-
-When there is no panel to reuse, the swipe **stops** rather than substituting an
-action you didn't ask for: the Peek stays open and the ▯▯ button pulses with
-*Click to finish the split*. That click, and
-<kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd>, carry real activation and open the panel
-themselves.
+**Splitting is not on that list, deliberately.** A swipe is not a click, and
+`sidePanel.open()` is refused for a wheel gesture — no context in the extension
+can talk it round. Re-aiming a panel that is already open needs no gesture, so
+the swipe could be made to work *sometimes*: instantly when a panel happened to
+be up, and not at all when one wasn't. A gesture whose meaning depends on
+invisible state is worse than one that does the same thing every time, so the
+swipe does the thing it can always do. The ▯▯ button and
+<kbd>⌥</kbd><kbd>⇧</kbd><kbd>S</kbd> carry real activation and split.
 
 ### Keyboard
 
@@ -233,7 +226,7 @@ options.
 | `splitMode` | `sidePanel` | `sidePanel` (one window) or `window` (two tiled windows). |
 | `prefetch` | on | Start loading on pointer-down rather than click. |
 | `dismissOnSwipe` | on | Two-finger swipe to dismiss. Rubber-banded, with a fling threshold. |
-| `swipeOpposite` | `split` | What the swipe against the dismiss direction does. `split` \| `promote` \| `off`. |
+| `swipeOpposite` | `promote` | What the swipe against the dismiss direction does. `promote` \| `off`. |
 | `naturalScrolling` | on | Match your system's trackpad setting. It decides which way a swipe is *reported*, and no API exposes it — get it wrong and the pane runs away from your fingers. |
 | `swipeDirection` | `right` | The direction you move your fingers to dismiss. The pane always travels with them. `right` \| `left`. |
 | `swipeSensitivity` | `1` | How far the gesture must travel before the Peek lets go, `0.5`–`2`. It divides the threshold rather than scaling the motion, so the pane moves the same distance per finger — it just gives up sooner. At `1` that's ~149 px; at `2`, ~66 px. |

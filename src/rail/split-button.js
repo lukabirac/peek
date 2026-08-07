@@ -36,9 +36,9 @@ const toParent = (kind, extra) => {
   } catch {}
 };
 
-// Only ever called from the click handler below. A swipe cannot borrow it —
-// activation belongs to the gesture, not to the frame — so the swipe path asks
-// the worker to re-aim an open panel instead. See peek-host's _splitFromSwipe.
+// Only ever called from the click handler below. Activation belongs to the
+// gesture, not to the frame, so nothing else can borrow this — which is why
+// swiping doesn't split.
 function attemptSplit() {
   // open() must be the first statement that touches an API — anything awaited
   // ahead of it would consume the activation before it gets to check.

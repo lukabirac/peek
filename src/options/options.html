@@ -73,6 +73,42 @@
           </select>
         </label>
 
+        <label class="row">
+          <div class="txt">
+            <span class="t">Press and hold a link</span>
+            <span class="d">
+              Hold the button down on any link and it opens without the click
+              ever completing; let go and the link is not followed. Deliberate
+              in the same way a modifier is, so it works on every page and
+              ignores the blocklist. Trackpad and mouse only — on a touchscreen
+              a long press already belongs to the system.
+            </span>
+          </div>
+          <input type="checkbox" data-key="holdToPeek" class="switch" />
+        </label>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">How long a hold takes</span>
+            <span class="d">
+              Long enough that resting the cursor on a link doesn't count,
+              short enough that you aren't waiting on it. The press has to stay
+              put; move more than a few pixels and it becomes a drag.
+            </span>
+          </div>
+          <div class="slider">
+            <input
+              type="range"
+              data-key="holdDelay"
+              class="range"
+              min="200"
+              max="1000"
+              step="50"
+            />
+            <output class="rangeVal" id="holdOut"></output>
+          </div>
+        </label>
+
         <div class="row col">
           <div class="txt">
             <span class="t">Always peek links on these sites</span>

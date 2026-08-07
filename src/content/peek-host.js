@@ -29,6 +29,8 @@
     prefetch: true, // warm the document on pointerdown
     allowlist: [], // extra hosts treated like a pinned tab
     blocklist: [], // hosts that never peek automatically, from either end
+    holdToPeek: true, // press and hold a link to peek it
+    holdDelay: 450, // ms of stillness before a press counts as a hold
     reducedEffects: false, // drop backdrop blur on weak GPUs
     dismissOnSwipe: true,
     swipeDirection: "right", // 'right' | 'left' — which way you swipe, and go
@@ -186,11 +188,12 @@
    * Decide whether a click should become a peek.
    * Returns the resolved URL, or null to let the browser do its normal thing.
    */
-  function resolveTrigger(event) {
-    if (!settings.enabled || !ctxReady) return null;
-    if (event.defaultPrevented) return null;
-    if (event.button !== 0) return null;
-
+  /**
+   * The part of a trigger that is only about the link itself: is there one,
+   * and is it the kind of thing a peek can show? Shared by the click path and
+   * the press-and-hold path, which disagree about everything after this.
+   */
+  function linkFrom(event) {
     const a = anchorFrom(event);
     if (!a) return null;
     if (a.hasAttribute("download")) return null;
@@ -201,6 +204,18 @@
     const url = parseURL(a instanceof SVGAElement ? a.href.baseVal : a.href);
     if (!url || !PEEKABLE.test(url.protocol)) return null;
     if (isSamePageAnchor(url)) return null;
+
+    return { a, url };
+  }
+
+  function resolveTrigger(event) {
+    if (!settings.enabled || !ctxReady) return null;
+    if (event.defaultPrevented) return null;
+    if (event.button !== 0) return null;
+
+    const hit = linkFrom(event);
+    if (!hit) return null;
+    const { a, url } = hit;
 
     // Held a modifier: you asked for this one, so the blocklist stays out of
     // it. Everything past this point is Peek deciding on its own.
@@ -1133,6 +1148,81 @@
     true
   );
 
+  /* ---- trigger: press and hold --------------------------------------- */
+  /*
+   * Hold the button down on a link and it opens, without ever completing the
+   * click. Deliberate in the same way a modifier-click is — you have to mean
+   * it for the better part of half a second — so it works on any link, on any
+   * page, and the blocklist stays out of it.
+   *
+   * Touch is left alone: a long press there already means the OS callout, and
+   * fighting that would break selecting a link's address.
+   */
+
+  const HOLD_SLOP_PX = 6; // a hold is a press that stays put
+  const holdDelay = () => {
+    const ms = Number(settings.holdDelay);
+    return Number.isFinite(ms) ? clamp(ms, 200, 1200) : 450;
+  };
+
+  let hold = null; // { url, x, y, opened, timer }
+  let swallowClickUntil = 0;
+
+  function endHold() {
+    if (!hold) return;
+    clearTimeout(hold.timer);
+    hold = null;
+  }
+
+  document.addEventListener(
+    "pointerdown",
+    (e) => {
+      if (!settings.enabled || !ctxReady || !settings.holdToPeek) return;
+      if (e.button !== 0 || e.pointerType === "touch") return;
+      if (e.defaultPrevented || isBrowserChord(e)) return;
+      // A modifier already has its own meaning on press; don't stack a second
+      // trigger on top of it and open two peeks for one gesture.
+      if (modifierHeld(e)) return;
+
+      const hit = linkFrom(e);
+      if (!hit) return;
+
+      endHold();
+      hold = { url: hit.url.href, x: e.clientX, y: e.clientY, opened: false, timer: 0 };
+      hold.timer = setTimeout(() => {
+        if (!hold) return;
+        hold.opened = true;
+        // The release still has to be swallowed or the link navigates out from
+        // under the peek. Keyed on time rather than on the click itself: once
+        // the dialog is modal the page may never see that click at all, and a
+        // flag waiting for it would sit armed indefinitely.
+        swallowClickUntil = performance.now() + 1200;
+        ensureArmed();
+        openPeek(hold.url, { x: hold.x, y: hold.y });
+      }, holdDelay());
+    },
+    true
+  );
+
+  document.addEventListener(
+    "pointermove",
+    (e) => {
+      if (!hold || hold.opened) return;
+      if (
+        Math.abs(e.clientX - hold.x) > HOLD_SLOP_PX ||
+        Math.abs(e.clientY - hold.y) > HOLD_SLOP_PX
+      )
+        endHold();
+    },
+    { capture: true, passive: true }
+  );
+
+  // Anything that ends the press, or turns it into a different gesture.
+  for (const type of ["pointerup", "pointercancel", "dragstart", "contextmenu"]) {
+    document.addEventListener(type, () => endHold(), true);
+  }
+  window.addEventListener("blur", () => endHold(), true);
+
   document.addEventListener(
     "pointercancel",
     () => discardPrimed(),
@@ -1144,6 +1234,14 @@
   document.addEventListener(
     "click",
     (e) => {
+      // The tail of a press-and-hold. The peek is already open; letting this
+      // through would navigate the tab as well.
+      if (performance.now() < swallowClickUntil) {
+        swallowClickUntil = 0;
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       const url = resolveTrigger(e);
       if (!url) return;
       e.preventDefault();

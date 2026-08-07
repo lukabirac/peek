@@ -6,6 +6,8 @@ const DEFAULTS = {
   prefetch: true,
   allowlist: [],
   blocklist: [],
+  holdToPeek: true,
+  holdDelay: 450,
   reducedEffects: false,
   dismissOnSwipe: true,
   swipeDirection: "right",
@@ -36,23 +38,39 @@ function fromUI(el) {
   return el.value;
 }
 
-/* ─── Sensitivity readout ─────────────────────────────────────────────── */
+/* ─── Slider readouts ─────────────────────────────────────────────────── */
 /*
- * The slider divides the commit threshold, so it is worth showing what that
- * actually costs in finger movement. These mirror peek-host.js: the panel
- * travels pow(x, 0.86) * 1.6 for x pixels of swipe, and commits past 118px
- * of panel travel divided by the sensitivity.
+ * A slider that only shows its own number tells you nothing you can feel, so
+ * each one is rendered in the unit the gesture actually has: how far you have
+ * to swipe, how long you have to wait.
+ *
+ * The swipe figures mirror peek-host.js — the panel travels pow(x, 0.86) * 1.6
+ * for x pixels of swipe, and commits past 118px of panel travel divided by the
+ * sensitivity.
  */
-const sensOut = document.getElementById("sensOut");
-
 function travelFor(sensitivity) {
   const commitPx = 118 / sensitivity;
   return Math.round(Math.pow(commitPx / 1.6, 1 / 0.86));
 }
 
-function paintSensitivity(value) {
-  const v = Number(value) || 1;
-  sensOut.textContent = `${v.toFixed(1)}× · ${travelFor(v)} px`;
+// Keyed by setting rather than by element type: two ranges sharing one
+// painter would have had the hold slider writing the swipe readout.
+const READOUTS = {
+  swipeSensitivity: (v) => {
+    const n = Number(v) || 1;
+    return { el: "sensOut", text: `${n.toFixed(1)}× · ${travelFor(n)} px` };
+  },
+  holdDelay: (v) => {
+    const n = Number(v) || 450;
+    return { el: "holdOut", text: `${(n / 1000).toFixed(2)}s` };
+  },
+};
+
+function paintReadout(key, value) {
+  const r = READOUTS[key]?.(value);
+  if (!r) return;
+  const node = document.getElementById(r.el);
+  if (node) node.textContent = r.text;
 }
 
 /* ─── Load / save ─────────────────────────────────────────────────────── */
@@ -61,7 +79,7 @@ async function load() {
   const { settings } = await chrome.storage.sync.get("settings");
   const s = { ...DEFAULTS, ...(settings || {}) };
   for (const el of fields) toUI(el, s[el.dataset.key]);
-  paintSensitivity(s.swipeSensitivity);
+  for (const key of Object.keys(READOUTS)) paintReadout(key, s[key]);
 }
 
 function flash(text) {
@@ -85,7 +103,7 @@ async function save() {
 for (const el of fields) {
   const evt = el.tagName === "TEXTAREA" || el.type === "range" ? "input" : "change";
   el.addEventListener(evt, () => {
-    if (el.type === "range") paintSensitivity(el.value);
+    if (el.type === "range") paintReadout(el.dataset.key, el.value);
     clearTimeout(saveTimer);
     // Typing in the allowlist, or dragging the slider, shouldn't write on
     // every single event.

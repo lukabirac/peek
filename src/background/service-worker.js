@@ -15,6 +15,8 @@ const DEFAULTS = {
   prefetch: true,
   allowlist: [],
   blocklist: [],
+  holdToPeek: true,
+  holdDelay: 450,
   reducedEffects: false,
   dismissOnSwipe: true,
   swipeDirection: "right",

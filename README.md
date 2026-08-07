@@ -73,6 +73,7 @@ The transient case is the default; persistence is the deliberate act.
 |---|---|
 | Click a link in a **pinned tab** | on |
 | **Shift-click** any link, anywhere | on |
+| **Press and hold** a link for ~0.45s | on |
 | `target="_blank"` or `window.open()` from a pinned tab | on |
 | Right-click → **Peek Link** | always |
 | <kbd>⌥</kbd><kbd>⇧</kbd><kbd>P</kbd> with the cursor over a link | always |
@@ -80,6 +81,14 @@ The transient case is the default; persistence is the deliberate act.
 
 ⌘-click, middle-click and sized popups keep their normal meaning. Links to the
 page you're already on and download links are never peeked.
+
+**Press and hold** is the one trigger that needs no modifier and no pinned tab:
+hold the button down on any link and the Peek opens under your finger, before
+the click has completed. Letting go does not follow the link. Move more than a
+few pixels and it becomes an ordinary drag instead, so selecting text and
+dragging links both still work. It counts as deliberate, like a modifier-click,
+so it works on every page and ignores the blocklist. Trackpad and mouse only —
+on a touchscreen a long press already belongs to the system.
 
 The **blocklist** switches off the triggers that fire on their own — a pinned
 tab, the allowlist, a `_blank` link — for the sites on it. It counts from both
@@ -191,6 +200,8 @@ options.
 | `onPinnedTabs` | on | Clicks in a pinned tab peek instead of navigating. |
 | `peekNewTabLinks` | on | Route `target="_blank"` and `window.open()` into a Peek. Sized popups — sign-in, payment — are left alone. |
 | `modifier` | `shift` | Modifier that peeks any link on any page. `shift` \| `alt` \| `none`. |
+| `holdToPeek` | on | Press and hold a link to peek it, without the click ever completing. |
+| `holdDelay` | `450` | Milliseconds a press must stay still to count as a hold, `200`–`1000`. |
 | `allowlist` | `[]` | Hostnames treated like a pinned tab. Subdomains included. |
 | `blocklist` | `[]` | Hostnames that never peek automatically, from either end. Modifier-click and the explicit commands still work. Subdomains included. |
 | `splitMode` | `sidePanel` | `sidePanel` (one window) or `window` (two tiled windows). |

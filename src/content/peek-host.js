@@ -211,17 +211,24 @@
 
   function resolveTrigger(event) {
     if (!settings.enabled || !ctxReady) return null;
-    if (event.defaultPrevented) return null;
     if (event.button !== 0) return null;
 
     const hit = linkFrom(event);
     if (!hit) return null;
     const { a, url } = hit;
 
-    // Held a modifier: you asked for this one, so the blocklist stays out of
-    // it. Everything past this point is Peek deciding on its own.
+    // Held a modifier: you asked for this one, so neither the blocklist nor
+    // the page's own opinion of the click gets in the way. Everything past
+    // this point is Peek deciding on its own.
     const byModifier = modifierHeld(event);
     if (byModifier) return url.href;
+
+    // The page answered this click itself — an attachment chip that opens its
+    // own preview, a router that navigates in script, a menu that only looks
+    // like a link. Whatever it is, it is not a link waiting to be peeked, and
+    // taking it would replace what the site does with a bare load of an href
+    // that may not mean anything on its own.
+    if (event.defaultPrevented) return null;
 
     if (isBrowserChord(event)) return null; // ⌘-click still means new tab
     if (hostBlocked(url.hostname)) return null;
@@ -1330,26 +1337,58 @@
 
   /* ---- trigger: the click itself ------------------------------------- */
 
+  // The tail of a press-and-hold, and the one thing that still has to run
+  // before the page: the peek is already open, so this click must not reach
+  // anything at all. Letting it through would navigate the tab as well, or
+  // fire whatever the page does with the link on top of the peek.
   document.addEventListener(
     "click",
     (e) => {
-      // The tail of a press-and-hold. The peek is already open; letting this
-      // through would navigate the tab as well.
       if (performance.now() < swallowClickUntil) {
         swallowClickUntil = 0;
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         return;
       }
-      const url = resolveTrigger(e);
-      if (!url) return;
-      e.preventDefault();
-      e.stopPropagation();
-      ensureArmed();
-      openPeek(url, { x: e.clientX, y: e.clientY });
+      // Capture is the only phase guaranteed to run — the page may stop this
+      // event before the trigger below ever sees it. A peek primed on
+      // pointerdown for a click that then went to the page is orphaned: it
+      // would hold a hidden document and the relaxed header rule until the
+      // 12s discard. This runs after the whole dispatch, so a click that did
+      // open a peek has already set `current` and is left alone.
+      if (primed) setTimeout(() => (current || !primed ? null : discardPrimed()), 0);
     },
     true
   );
+
+  /*
+   * The trigger itself listens last, on the bubble phase at the window.
+   *
+   * It used to take the click in the capture phase, ahead of the page, and
+   * cancel it outright. That is wrong wherever a link is really an app
+   * control: Gmail's attachment chips are anchors whose click Gmail handles
+   * itself to open its own preview, and Peek was cancelling that and loading
+   * the raw attachment URL in a pane instead — a URL that was never meant to
+   * stand on its own, so it showed nothing. The same shape appears anywhere a
+   * click is routed through script rather than followed.
+   *
+   * Deciding last costs nothing for an ordinary link, because nothing on the
+   * page cancels those, and preventDefault still stops the navigation from a
+   * bubble listener — the default action runs after dispatch, not during it.
+   * The trade is a page that calls stopPropagation() on its links without
+   * cancelling them: the event never arrives here and the link just navigates
+   * as it would with no extension installed. That is the right way round.
+   * Before, Peek won every one of those clicks and broke the page's own
+   * handling to do it; now Peek yields, and a modifier-click still overrides.
+   */
+  window.addEventListener("click", (e) => {
+    const url = resolveTrigger(e);
+    if (!url) return; // the capture listener above clears anything primed
+    e.preventDefault();
+    ensureArmed();
+    openPeek(url, { x: e.clientX, y: e.clientY });
+  });
 
   /* ---- trigger: window.open / _blank from the main world ------------- */
 

@@ -82,6 +82,14 @@ The transient case is the default; persistence is the deliberate act.
 ⌘-click, middle-click and sized popups keep their normal meaning. Links to the
 page you're already on and download links are never peeked.
 
+**A link the page handles itself is left alone.** Peek decides last, after the
+page has had the click: Gmail's attachment chips are anchors whose click Gmail
+answers with its own preview, and plenty of apps route a click through script
+rather than following the href. Peeking those would replace what the site does
+with a bare load of a URL that often means nothing on its own. If the page
+cancels the click, or stops it before it reaches Peek, the site wins. A
+modifier-click still overrides — that one is you asking on purpose.
+
 **Press and hold** is the one trigger that needs no modifier and no pinned tab:
 hold the button down on any link and the Peek opens under your finger, before
 the click has completed. Letting go does not follow the link. Move more than a

@@ -93,10 +93,21 @@ modifier-click still overrides — that one is you asking on purpose.
 **Press and hold** is the one trigger that needs no modifier and no pinned tab:
 hold the button down on any link and the Peek opens under your finger, before
 the click has completed. Letting go does not follow the link. Move more than a
-few pixels and it becomes an ordinary drag instead, so selecting text and
-dragging links both still work. It counts as deliberate, like a modifier-click,
-so it works on every page and ignores the blocklist. Trackpad and mouse only —
-on a touchscreen a long press already belongs to the system.
+dozen pixels and it becomes an ordinary drag instead. It counts as deliberate,
+like a modifier-click, so it works on every page and ignores the blocklist.
+Trackpad and mouse only — on a touchscreen a long press already belongs to the
+system.
+
+One cost, worth knowing before you leave it on: **a link can't be dragged while
+press-and-hold is enabled.** Chromium begins a link drag after about three
+pixels of movement — less than a finger travels just pressing down on a
+trackpad — and at that instant nothing distinguishes a drag from a drift, since
+both arrive within a few pixels and a few tens of milliseconds of the press. So
+the hold takes the press and the drag is refused; Chromium offers no second
+chance at one within the same press. Dragging anything that is not a link is
+untouched, and the setting is the way out. This is also why the trigger used to
+work with a mouse and not with a trackpad: a mouse resting on a desk moves by
+nothing at all, so the drag never started and the hold survived.
 
 The **blocklist** switches off the triggers that fire on their own — a pinned
 tab, the allowlist, a `_blank` link — for the sites on it. It counts from both

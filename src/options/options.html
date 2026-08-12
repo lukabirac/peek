@@ -82,6 +82,11 @@
               in the same way a modifier is, so it works on every page and
               ignores the blocklist. Trackpad and mouse only — on a touchscreen
               a long press already belongs to the system.
+              <strong>While this is on, links can't be dragged.</strong>
+              Chromium starts a link drag after about three pixels, which is
+              less than a finger moves just pressing down on a trackpad, and
+              nothing tells the two apart at that moment — so the hold takes
+              the press. Dragging anything that isn't a link is unaffected.
             </span>
           </div>
           <input type="checkbox" data-key="holdToPeek" class="switch" />

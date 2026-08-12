@@ -1265,7 +1265,11 @@
    * fighting that would break selecting a link's address.
    */
 
-  const HOLD_SLOP_PX = 6; // a hold is a press that stays put
+  // How far the pointer may wander and still count as staying put. Sized for
+  // a trackpad, not a mouse: a finger pressing down on a pad shifts its own
+  // contact patch, and pointer acceleration turns that into several pixels of
+  // cursor travel. A mouse sitting on a desk moves by nothing at all.
+  const HOLD_SLOP_PX = 12;
   const holdDelay = () => {
     const ms = Number(settings.holdDelay);
     return Number.isFinite(ms) ? clamp(ms, 200, 1200) : 450;
@@ -1324,9 +1328,34 @@
   );
 
   // Anything that ends the press, or turns it into a different gesture.
-  for (const type of ["pointerup", "pointercancel", "dragstart", "contextmenu"]) {
+  for (const type of ["pointerup", "pointercancel", "contextmenu"]) {
     document.addEventListener(type, () => endHold(), true);
   }
+
+  /*
+   * A native link drag used to be on that list, and it ended every hold on a
+   * trackpad before it could begin. Chromium starts one after a very small
+   * movement — measured at three pixels, with the event still reporting the
+   * same coordinate as the press — and a finger settling on a pad always
+   * travels that far. A mouse on a desk travels none, which is exactly why
+   * the trigger worked with one device and not the other.
+   *
+   * Nothing distinguishes a drag from a drift at that moment: both arrive
+   * within a few pixels and a few tens of milliseconds of the press. So while
+   * a hold is pending the hold wins and the drag is refused.
+   *
+   * The cost is real and worth stating: Chromium does not offer a second
+   * dragstart in the same press — verified — so a link cannot be dragged
+   * while press-and-hold is switched on. Dragging is still there for anything
+   * that is not a link, and the setting is the way out.
+   */
+  document.addEventListener(
+    "dragstart",
+    (e) => {
+      if (hold) e.preventDefault();
+    },
+    true
+  );
   window.addEventListener("blur", () => endHold(), true);
 
   document.addEventListener(

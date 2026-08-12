@@ -131,17 +131,26 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
       return false;
 
     case "peek:promote":
-      if (tab && msg.url) {
-        chrome.tabs.create({
+      // Answered, unlike the rest: the peek dismisses itself on the strength
+      // of this and must not do that for a tab that never appeared.
+      if (!tab || !msg.url) {
+        reply({ ok: false, error: "no tab or url" });
+        return true;
+      }
+      chrome.tabs
+        .create({
           url: msg.url,
           index: tab.index + 1,
           active: true,
           windowId: tab.windowId,
           openerTabId: tab.id,
-        });
-        disarm(tab.id);
-      }
-      return false;
+        })
+        .then(
+          () => reply({ ok: true }),
+          (e) => reply({ ok: false, error: String(e?.message || e) })
+        );
+      disarm(tab.id);
+      return true;
 
     case "peek:open-tab":
       if (tab && msg.url) {

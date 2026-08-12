@@ -55,6 +55,22 @@
     }
   };
 
+  /*
+   * False once Peek has been reloaded or updated underneath this page. The
+   * content script keeps running and the DOM half of it still works, but
+   * every chrome.* call from here is dead — so nothing can be armed, framed
+   * sites fail, and no message reaches the worker. Worth naming, because the
+   * only cure is reloading the page and the symptoms otherwise look like
+   * ordinary bugs.
+   */
+  const extensionAlive = () => {
+    try {
+      return !!chrome.runtime?.id;
+    } catch {
+      return false;
+    }
+  };
+
   send({ type: "peek:hello" }).then((res) => {
     if (res) {
       settings = { ...DEFAULTS, ...(res.settings || {}) };
@@ -502,10 +518,11 @@
 
       this.fallback = document.createElement("div");
       this.fallback.className = "fallback";
-      this.fallback.innerHTML =
-        '<h2><span class="who">This site</span> won’t load in a Peek</h2>' +
-        "<p>It refuses to be embedded, so there’s nothing to preview here. " +
-        "Opening it as a tab works normally.</p>";
+      // Both lines are rewritten wholesale by whichever state claims the
+      // panel — see _blocked and _promoteFailed. The heading in particular
+      // cannot be half-fixed text with a name slotted into it, or the second
+      // state reads as a sentence spliced onto the first.
+      this.fallback.innerHTML = '<h2 class="head"></h2><p class="why"></p>';
       this.fbCta = document.createElement("button");
       this.fbCta.className = "cta";
       this.fbCta.type = "button";
@@ -527,7 +544,13 @@
         this._act(b.dataset.act);
       });
 
-      this.fbCta.addEventListener("click", () => this.promote());
+      this.fbCta.addEventListener("click", () => {
+        // The button re-labels itself when a promote fails; a page still
+        // running a content script from a reloaded Peek can only be fixed by
+        // reloading it, and nothing here can do that on its behalf.
+        if (this.fbCta.dataset.act === "reload") return void location.reload();
+        this.promote();
+      });
 
       // Clicking the scrim dismisses. A modal dialog reports backdrop clicks
       // as clicks on the dialog itself, so anything outside .panel is scrim.
@@ -750,8 +773,23 @@
     _blocked() {
       this.fallback.dataset.on = "1";
       this.loader.dataset.on = "0";
-      const host = this.fallback.querySelector(".who");
-      if (host) host.textContent = this.pendingHost || "This site";
+      this._say(
+        (this.pendingHost || "This site") + " won’t load in a Peek",
+        "It refuses to be embedded, so there’s nothing to preview here. " +
+          "Opening it as a tab works normally.",
+        "Open in New Tab",
+        "promote"
+      );
+    }
+
+    /** The fallback panel says exactly one thing at a time. */
+    _say(heading, body, cta, act) {
+      const h = this.fallback.querySelector(".head");
+      const p = this.fallback.querySelector(".why");
+      if (h) h.textContent = heading;
+      if (p) p.textContent = body;
+      this.fbCta.textContent = cta;
+      this.fbCta.dataset.act = act;
     }
 
     /* ---- lifecycle --------------------------------------------------- */
@@ -1052,8 +1090,58 @@
       if (!u) return;
       // Fire first so the tab appears with no perceptible delay; the morph
       // plays underneath in case focus stays on this tab.
-      send({ type: "peek:promote", url: u });
+      const sent = send({ type: "peek:promote", url: u });
       this._morphOut();
+      // ...but never take the peek away for a tab that does not exist. The
+      // worker answers once it has made one. No answer means the message
+      // never landed, and the commonest reason for that is this page still
+      // running a content script from a Peek that has since been reloaded:
+      // every chrome.* call from here is dead, which is also why the site
+      // failed to load in the pane in the first place. Silently closing on
+      // top of that loses the page you were looking at for nothing.
+      sent.then((r) => {
+        if (r && r.ok) return;
+        this._promoteFailed();
+      });
+    }
+
+    /**
+     * Put the peek back after an exit that turned out to be for nothing, and
+     * say why. Cheap because the morph is short: the reply either beats it or
+     * the peek is already gone, and a dead extension context answers at once.
+     */
+    _promoteFailed() {
+      if (this._gone) return; // the morph finished; nothing left to restore
+      clearTimeout(this._morphT);
+      try {
+        this._morphAnim?.cancel();
+      } catch {}
+      this.state = "open";
+      this.panel.style.transform = "";
+      this.panel.style.opacity = "";
+      const S = getComputedStyle(this.root);
+      this._animateBackdrop(true, 140, S.getPropertyValue("--ease-out").trim() || "ease-out");
+
+      this.loader.dataset.on = "0";
+      this.fallback.dataset.on = "1";
+      if (extensionAlive()) {
+        this._say(
+          "That tab didn’t open",
+          "The browser refused to open a tab for this address. The Peek has " +
+            "been left where it was.",
+          "Try Again",
+          "promote"
+        );
+      } else {
+        this._say(
+          "Peek was updated",
+          "This page is still running the old version, so Peek can’t reach the " +
+            "browser from here — which is also why the site wouldn’t load. " +
+            "Reload the page and both will work again.",
+          "Reload This Page",
+          "reload"
+        );
+      }
     }
 
     _morphOut() {
@@ -1088,7 +1176,9 @@
       // back at once is what read as a bounce.
       const x = exit ? exit.x * 0.35 : 0;
 
-      this.panel.animate(
+      // Both handles are kept so a promote that turns out to have opened
+      // nothing can put the peek back — see _promoteFailed.
+      this._morphAnim = this.panel.animate(
         [
           {
             transform: start,
@@ -1104,7 +1194,7 @@
         { duration: dur, easing: easeOut, fill: "forwards" }
       );
       this._animateBackdrop(false, dur, easeOut);
-      setTimeout(() => this._teardown(), dur);
+      this._morphT = setTimeout(() => this._teardown(), dur);
     }
 
     close(opts = {}) {
@@ -1158,6 +1248,7 @@
       clearTimeout(this._loaderT);
       clearTimeout(this._dragT);
       clearTimeout(this._railT);
+      clearTimeout(this._morphT);
       window.removeEventListener("message", this._onMsg);
       lockScroll(false);
       try {

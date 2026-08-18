@@ -31,8 +31,8 @@
     blocklist: [], // hosts that never peek automatically, from either end
     holdToPeek: true, // press and hold a link to peek it
     holdDelay: 450, // ms of stillness before a press counts as a hold
-    peekWidth: 100, // percent of the maximum safe pane width
-    peekHeight: 100, // percent of the maximum safe pane height
+    peekWidth: 85, // percent of the maximum safe pane width
+    peekHeight: 95, // percent of the maximum safe pane height
     backdropBlur: 18, // backdrop blur in px; reducedEffects still wins
     reducedEffects: false, // drop backdrop blur on weak GPUs
     dismissOnSwipe: true,
@@ -355,8 +355,8 @@
       this.handshook = false;
       this.committed = false; // has any document in the frame fired load yet?
       this.drag = null;
-      this.peekWidth = numberSetting(settings.peekWidth, 100, 50, 100);
-      this.peekHeight = numberSetting(settings.peekHeight, 100, 50, 100);
+      this.peekWidth = numberSetting(settings.peekWidth, 85, 50, 100);
+      this.peekHeight = numberSetting(settings.peekHeight, 95, 50, 100);
       this.backdropBlur = numberSetting(settings.backdropBlur, 18, 0, 30);
       this._build();
     }

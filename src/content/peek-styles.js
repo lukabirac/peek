@@ -57,8 +57,8 @@ globalThis.__PEEK__.CSS = /* css */ `
   --edge-gap: 12px;
   --inset-y: var(--edge-gap);
   --inset-x: calc(var(--orb) + var(--rail-gap) + var(--edge-gap));
-  --peek-width: 100%;
-  --peek-height: 100%;
+  --peek-width: 85%;
+  --peek-height: 95%;
   --radius: 12px;
 
   /* Motion — spring curve solved from stiffness 260 / damping 26 / mass 1.

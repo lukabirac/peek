@@ -8,8 +8,8 @@ const DEFAULTS = {
   blocklist: [],
   holdToPeek: true,
   holdDelay: 450,
-  peekWidth: 100,
-  peekHeight: 100,
+  peekWidth: 85,
+  peekHeight: 95,
   backdropBlur: 18,
   reducedEffects: false,
   dismissOnSwipe: true,
@@ -62,11 +62,11 @@ function travelFor(sensitivity) {
 const READOUTS = {
   peekWidth: (v) => {
     const n = Number(v);
-    return { el: "widthOut", text: `${Number.isFinite(n) ? n : 100}%` };
+    return { el: "widthOut", text: `${Number.isFinite(n) ? n : 85}%` };
   },
   peekHeight: (v) => {
     const n = Number(v);
-    return { el: "heightOut", text: `${Number.isFinite(n) ? n : 100}%` };
+    return { el: "heightOut", text: `${Number.isFinite(n) ? n : 95}%` };
   },
   backdropBlur: (v) => {
     const n = Number(v);

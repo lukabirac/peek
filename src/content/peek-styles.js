@@ -54,6 +54,8 @@ globalThis.__PEEK__.CSS = /* css */ `
   --inset-y: clamp(12px, 3.4vh, 38px);
   --inset-x: clamp(52px, 5vw, 92px);
   --max-w: 1340px;
+  --peek-width: 100%;
+  --peek-height: 100%;
   --radius: 12px;
   --orb: 30px;
   --rail-gap: 16px;
@@ -157,8 +159,8 @@ dialog[open] { display: grid; place-items: center; }
    close transitions are driven from JS against these same values. */
 dialog::backdrop {
   background: rgba(16, 16, 18, 0.26);
-  backdrop-filter: blur(18px) saturate(112%);
-  -webkit-backdrop-filter: blur(18px) saturate(112%);
+  backdrop-filter: __PEEK_BACKDROP_FILTER__;
+  -webkit-backdrop-filter: __PEEK_BACKDROP_FILTER__;
 }
 .root[data-scheme="dark"] dialog::backdrop { background: rgba(0, 0, 0, 0.46); }
 .root[data-reduced-effects="1"] dialog::backdrop {
@@ -167,12 +169,23 @@ dialog::backdrop {
 }
 
 /* ── Panel ──────────────────────────────────────────────────────────────── */
+/* .bounds reserves the largest safe rectangle. The panel is a percentage of
+   that rectangle, so personalised dimensions stay responsive and never crowd
+   the outside button rail off-screen. */
+.bounds {
+  width: min(calc(100vw - var(--inset-x) * 2), var(--max-w));
+  height: calc(100vh - var(--inset-y) * 2);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
 /* .panel is the animated, positioned box; it carries no paint of its own so
    the rail can hang outside it without being clipped. */
 .panel {
   position: relative;
-  width: min(calc(100vw - var(--inset-x) * 2), var(--max-w));
-  height: calc(100vh - var(--inset-y) * 2);
+  width: var(--peek-width);
+  height: var(--peek-height);
   transform-origin: var(--origin-x, 50%) var(--origin-y, 50%);
   will-change: transform, opacity;
   pointer-events: auto;

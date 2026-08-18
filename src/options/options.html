@@ -192,6 +192,73 @@
       </section>
 
       <section class="card">
+        <h2>Appearance</h2>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Peek width</span>
+            <span class="d">
+              Percentage of the largest pane that fits safely beside the
+              controls. It stays responsive when the browser is resized.
+            </span>
+          </div>
+          <div class="slider">
+            <input
+              type="range"
+              data-key="peekWidth"
+              class="range"
+              min="50"
+              max="100"
+              step="5"
+            />
+            <output class="rangeVal" id="widthOut"></output>
+          </div>
+        </label>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Peek height</span>
+            <span class="d">
+              Percentage of the available pane height. Smaller values leave
+              more of the source page visible around the preview.
+            </span>
+          </div>
+          <div class="slider">
+            <input
+              type="range"
+              data-key="peekHeight"
+              class="range"
+              min="50"
+              max="100"
+              step="5"
+            />
+            <output class="rangeVal" id="heightOut"></output>
+          </div>
+        </label>
+
+        <label class="row">
+          <div class="txt">
+            <span class="t">Backdrop blur</span>
+            <span class="d">
+              Blur behind the Peek, from none to strong. Reduce effects below
+              remains a master switch and disables blur regardless of this value.
+            </span>
+          </div>
+          <div class="slider">
+            <input
+              type="range"
+              data-key="backdropBlur"
+              class="range"
+              min="0"
+              max="30"
+              step="1"
+            />
+            <output class="rangeVal" id="blurOut"></output>
+          </div>
+        </label>
+      </section>
+
+      <section class="card">
         <h2>Feel</h2>
 
         <label class="row">

@@ -243,21 +243,26 @@ options.
 | `allowlist` | `[]` | Hostnames treated like a pinned tab. Subdomains included. |
 | `blocklist` | `[]` | Hostnames that never peek automatically, from either end. Modifier-click and the explicit commands still work. Subdomains included. |
 | `splitMode` | `sidePanel` | `sidePanel` (one window) or `window` (two tiled windows). |
+| `peekWidth` | `100` | Pane width as a percentage of the largest safe width, `50`–`100`. |
+| `peekHeight` | `100` | Pane height as a percentage of the largest safe height, `50`–`100`. |
+| `backdropBlur` | `18` | Backdrop blur strength in pixels, `0`–`30`. `reducedEffects` overrides it. |
 | `prefetch` | on | Start loading on pointer-down rather than click. |
 | `dismissOnSwipe` | on | Two-finger swipe to dismiss. Rubber-banded, with a fling threshold. |
 | `swipeOpposite` | `promote` | What the swipe against the dismiss direction does. `promote` \| `off`. |
 | `naturalScrolling` | on | Match your system's trackpad setting. It decides which way a swipe is *reported*, and no API exposes it — get it wrong and the pane runs away from your fingers. |
 | `swipeDirection` | `right` | The direction you move your fingers to dismiss. The pane always travels with them. `right` \| `left`. |
 | `swipeSensitivity` | `1` | How far the gesture must travel before the Peek lets go, `0.5`–`2`. It divides the threshold rather than scaling the motion, so the pane moves the same distance per finger — it just gives up sooner. At `1` that's ~149 px; at `2`, ~66 px. |
-| `reducedEffects` | off | Drop the backdrop blur. Worth it on integrated graphics. |
+| `reducedEffects` | off | Drop the backdrop and control blur, overriding `backdropBlur`. Worth it on integrated graphics. |
 
-The swipe controls live under **Feel**:
+Size and backdrop controls live under **Appearance**. The swipe controls live
+under **Feel**:
 
 ![The Feel section, light and dark](docs/settings-feel.png)
 
-Settings take effect immediately — content scripts pick them up through
-`storage.onChanged`, so no tab needs reloading for a change to apply. The one
-exception is a tab that was already open when Peek was *installed or reloaded*:
+Settings are picked up through `storage.onChanged`, so no tab needs reloading.
+Trigger changes take effect immediately; appearance settings and other values
+captured while building the overlay apply to the next Peek. The one exception is
+a tab that was already open when Peek was *installed or reloaded*:
 it never received a content script at all, so nothing in it will respond however
 the settings change. The settings page detects exactly those tabs by pinging
 each one, names them, and offers to reload them — rather than telling you to

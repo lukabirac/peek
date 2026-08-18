@@ -31,6 +31,9 @@
     blocklist: [], // hosts that never peek automatically, from either end
     holdToPeek: true, // press and hold a link to peek it
     holdDelay: 450, // ms of stillness before a press counts as a hold
+    peekWidth: 100, // percent of the maximum safe pane width
+    peekHeight: 100, // percent of the maximum safe pane height
+    backdropBlur: 18, // backdrop blur in px; reducedEffects still wins
     reducedEffects: false, // drop backdrop blur on weak GPUs
     dismissOnSwipe: true,
     swipeOpposite: "promote", // 'promote' | 'off' — the gesture reversed
@@ -260,6 +263,10 @@
 
   const ORIGIN_CLAMP = [8, 92];
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const numberSetting = (value, fallback, lo, hi) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? clamp(n, lo, hi) : fallback;
+  };
 
   /*
    * How long a revealed peek may show nothing at all before it gives up and
@@ -348,6 +355,9 @@
       this.handshook = false;
       this.committed = false; // has any document in the frame fired load yet?
       this.drag = null;
+      this.peekWidth = numberSetting(settings.peekWidth, 100, 50, 100);
+      this.peekHeight = numberSetting(settings.peekHeight, 100, 50, 100);
+      this.backdropBlur = numberSetting(settings.backdropBlur, 18, 0, 30);
       this._build();
     }
 
@@ -363,7 +373,12 @@
       this.shadow = this.mount.attachShadow({ mode: "closed" });
 
       const style = document.createElement("style");
-      style.textContent = SHEET;
+      style.textContent = SHEET.replaceAll(
+        "__PEEK_BACKDROP_FILTER__",
+        this.backdropBlur
+          ? `blur(${this.backdropBlur}px) saturate(112%)`
+          : "none"
+      );
       this.shadow.append(style);
 
       const root = document.createElement("div");
@@ -372,6 +387,8 @@
         ? "dark"
         : "light";
       root.dataset.reducedEffects = settings.reducedEffects ? "1" : "0";
+      root.style.setProperty("--peek-width", `${this.peekWidth}%`);
+      root.style.setProperty("--peek-height", `${this.peekHeight}%`);
       this.root = root;
 
       const dlg = document.createElement("dialog");
@@ -386,7 +403,11 @@
       this.panel = panel;
 
       panel.append(this._pane(), this._rail());
-      dlg.append(panel);
+
+      const bounds = document.createElement("div");
+      bounds.className = "bounds";
+      bounds.append(panel);
+      dlg.append(bounds);
       root.append(dlg);
       this.shadow.append(root);
 
@@ -890,9 +911,12 @@
       const dark = this.root.dataset.scheme === "dark";
       const to = dark ? "rgba(0,0,0,0.44)" : "rgba(20,20,24,0.26)";
       const from = dark ? "rgba(0,0,0,0)" : "rgba(20,20,24,0)";
-      const blur = settings.reducedEffects
+      const blur = settings.reducedEffects || this.backdropBlur === 0
         ? ["none", "none"]
-        : ["blur(0px) saturate(100%)", "blur(18px) saturate(112%)"];
+        : [
+            "blur(0px) saturate(100%)",
+            `blur(${this.backdropBlur}px) saturate(112%)`,
+          ];
       const kf = [
         { backgroundColor: from, backdropFilter: blur[0], opacity: 0 },
         { backgroundColor: to, backdropFilter: blur[1], opacity: 1 },

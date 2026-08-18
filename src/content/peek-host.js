@@ -538,10 +538,13 @@
       this.frame.className = "frame";
       this.frame.setAttribute("allow", "clipboard-write; fullscreen; picture-in-picture");
       this.frame.setAttribute("referrerpolicy", "no-referrer");
+      this.frame.setAttribute("sandbox", "allow-scripts");
       /*
-       * This trusted extension frame wraps the actual page. The target remains
-       * sandboxed one level down, where it is always cross-origin from its
-       * direct parent and therefore cannot remove its own sandbox attribute.
+       * This extension-authored wrapper is sandboxed to an opaque origin. The
+       * target remains sandboxed one level down, where it is always cross-origin
+       * from its direct parent and cannot remove its own sandbox attribute.
+       * Keeping the wrapper opaque also lets the tab-scoped DNR rule apply to
+       * the target request; Chrome excludes extension-origin requests from it.
        * See src/frame/frame.js.
        */
 

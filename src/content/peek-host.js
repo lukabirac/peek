@@ -118,6 +118,26 @@
     }
   }
 
+  // Chromium blocks an insecure subframe inside a secure page. Leaving these
+  // links to the browser preserves their normal navigation instead of opening
+  // a Peek that can only end in a Mixed Content error.
+  function isMixedFrame(url) {
+    return location.protocol === "https:" && url?.protocol === "http:";
+  }
+
+  function targetFrameURL(url, token) {
+    try {
+      const params = new URLSearchParams({
+        url,
+        token,
+        upgrade: location.protocol === "https:" ? "1" : "0",
+      });
+      return chrome.runtime.getURL("src/frame/frame.html") + "?" + params;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Does this URL point at the document we're already looking at?
    *
@@ -223,6 +243,7 @@
 
     const url = parseURL(a instanceof SVGAElement ? a.href.baseVal : a.href);
     if (!url || !PEEKABLE.test(url.protocol)) return null;
+    if (isMixedFrame(url)) return null;
     if (isSamePageAnchor(url)) return null;
 
     return { a, url };
@@ -516,22 +537,13 @@
       this.frame = document.createElement("iframe");
       this.frame.className = "frame";
       this.frame.setAttribute("allow", "clipboard-write; fullscreen; picture-in-picture");
-      this.frame.setAttribute("referrerpolicy", "no-referrer-when-downgrade");
+      this.frame.setAttribute("referrerpolicy", "no-referrer");
       /*
-       * Everything a normal document can do, minus navigating the top frame.
-       * A cross-origin frame can't do that on load anyway, but once you have
-       * clicked inside a peek the frame holds user activation and a
-       * frame-busting site could throw your tab somewhere you never asked to
-       * go. Omitting both allow-top-navigation tokens is what stops it; the
-       * rest of the list is here to keep the peek as capable as it was.
+       * This trusted extension frame wraps the actual page. The target remains
+       * sandboxed one level down, where it is always cross-origin from its
+       * direct parent and therefore cannot remove its own sandbox attribute.
+       * See src/frame/frame.js.
        */
-      this.frame.setAttribute(
-        "sandbox",
-        "allow-same-origin allow-scripts allow-forms allow-modals " +
-          "allow-popups allow-popups-to-escape-sandbox allow-downloads " +
-          "allow-pointer-lock allow-presentation allow-orientation-lock " +
-          "allow-storage-access-by-user-activation"
-      );
 
       this.loader = document.createElement("div");
       this.loader.className = "loader";
@@ -595,8 +607,6 @@
       });
 
       this.dlg.addEventListener("keydown", (e) => this._key(e), true);
-
-      this.frame.addEventListener("load", () => this._onFrameLoad());
 
       // Either gesture is reason enough to listen; _wheel decides which of the
       // two a given swipe is and re-checks that its own setting is on.
@@ -667,6 +677,10 @@
       }
       if (!this.frame || e.source !== this.frame.contentWindow) return;
       const d = e.data;
+      if (d?.__peekFrame === "load" && d.token === this.token) {
+        this._onFrameLoad();
+        return;
+      }
       if (!d || d.__peek !== "child" || d.token !== this.token) return;
 
       switch (d.kind) {
@@ -767,11 +781,8 @@
 
     _onFrameLoad() {
       if (this._gone) return;
-      // A freshly created iframe fires load for its initial about:blank before
-      // we've even set src. Treating that as a committed document would start
-      // the "can't be embedded" countdown against a document that was never
-      // asked to load anything.
-      if (!this.frame.src || this.frame.src === "about:blank") return;
+      // The extension wrapper reports only loads of the nested target frame,
+      // never its own initial document, so every call here is a real commit.
       this.committed = true;
       // Every committed document is a new child that has to be greeted again.
       this.handshook = false;
@@ -833,7 +844,12 @@
       } catch {}
       ensureArmed().then(() => {
         if (this._gone) return;
-        this.frame.src = url;
+        const src = targetFrameURL(url, this.token);
+        if (!src) {
+          this._promoteFailed();
+          return;
+        }
+        this.frame.src = src;
       });
     }
 
@@ -1553,6 +1569,10 @@
     if (!url) return;
     const u = parseURL(url);
     if (!u || !PEEKABLE.test(u.protocol)) return;
+    if (isMixedFrame(u)) {
+      send({ type: "peek:open-tab", url: u.href, active: true });
+      return;
+    }
     // The shim only fires on eligible pages, so the page end is already
     // covered; the destination is not.
     if (pageBlocked() || hostBlocked(u.hostname)) return;
@@ -1574,8 +1594,13 @@
         // consults the blocklist.
         case "peek:open":
           if (msg.url) {
-            ensureArmed();
-            openPeek(msg.url, lastPointer);
+            const u = parseURL(msg.url);
+            if (isMixedFrame(u)) {
+              send({ type: "peek:open-tab", url: u.href, active: true });
+            } else {
+              ensureArmed();
+              openPeek(msg.url, lastPointer);
+            }
           }
           break;
         case "peek:promote-current":
@@ -1617,6 +1642,7 @@
     const href = el instanceof SVGAElement ? el.href.baseVal : el.href;
     const u = parseURL(href);
     if (!u || !PEEKABLE.test(u.protocol)) return null;
+    if (isMixedFrame(u)) return null;
     // The keyboard trigger bypasses resolveTrigger, so the exclusions a click
     // gets for free have to be restated. Without this, ⌥⇧P over a table-of-
     // contents link peeks the page you are already looking at.

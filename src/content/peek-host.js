@@ -805,6 +805,16 @@
     _blocked() {
       this.fallback.dataset.on = "1";
       this.loader.dataset.on = "0";
+      if (!extensionAlive()) {
+        this._say(
+          "Peek was updated",
+          "This tab is still running the previous version. Reload it and try " +
+            "the link again.",
+          "Reload This Page",
+          "reload"
+        );
+        return;
+      }
       this._say(
         (this.pendingHost || "This site") + " won’t load in a Peek",
         "It refuses to be embedded, so there’s nothing to preview here. " +

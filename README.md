@@ -243,8 +243,8 @@ options.
 | `allowlist` | `[]` | Hostnames treated like a pinned tab. Subdomains included. |
 | `blocklist` | `[]` | Hostnames that never peek automatically, from either end. Modifier-click and the explicit commands still work. Subdomains included. |
 | `splitMode` | `sidePanel` | `sidePanel` (one window) or `window` (two tiled windows). |
-| `peekWidth` | `100` | Pane width as a percentage of the largest safe width, `50`–`100`. |
-| `peekHeight` | `100` | Pane height as a percentage of the largest safe height, `50`–`100`. |
+| `peekWidth` | `100` | Pane width as a percentage of the full safe viewport width, `50`–`100`. At `100`, symmetric gutters leave exactly enough room for the outside button rail. |
+| `peekHeight` | `100` | Pane height as a percentage of the full safe viewport height, `50`–`100`. |
 | `backdropBlur` | `18` | Backdrop blur strength in pixels, `0`–`30`. `reducedEffects` overrides it. |
 | `prefetch` | on | Start loading on pointer-down rather than click. |
 | `dismissOnSwipe` | on | Two-finger swipe to dismiss. Rubber-banded, with a fling threshold. |

@@ -31,7 +31,7 @@
     blocklist: [], // hosts that never peek automatically, from either end
     holdToPeek: true, // press and hold a link to peek it
     holdDelay: 450, // ms of stillness before a press counts as a hold
-    reducedEffects: false, // drop backdrop blur on weak GPUs
+    reducedEffects: false, // drop blur and source morphs on weak GPUs
     dismissOnSwipe: true,
     swipeOpposite: "promote", // 'promote' | 'off' — the gesture reversed
     swipeDirection: "right", // 'right' | 'left' — which way you swipe, and go
@@ -261,6 +261,117 @@
   const ORIGIN_CLAMP = [8, 92];
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+  /** Clip a DOMRect-like object to the visible viewport and make it durable. */
+  function viewportRect(rect) {
+    if (!rect) return null;
+    const rawLeft = Number(rect.left);
+    const rawTop = Number(rect.top);
+    const rawRight = Number.isFinite(Number(rect.right))
+      ? Number(rect.right)
+      : rawLeft + Number(rect.width);
+    const rawBottom = Number.isFinite(Number(rect.bottom))
+      ? Number(rect.bottom)
+      : rawTop + Number(rect.height);
+    if (![rawLeft, rawTop, rawRight, rawBottom].every(Number.isFinite)) return null;
+
+    const left = clamp(rawLeft, 0, innerWidth);
+    const top = clamp(rawTop, 0, innerHeight);
+    const right = clamp(rawRight, 0, innerWidth);
+    const bottom = clamp(rawBottom, 0, innerHeight);
+    if (right - left < 2 || bottom - top < 2) return null;
+    return { left, top, width: right - left, height: bottom - top };
+  }
+
+  /** Pick the exact inline fragment under the pointer for wrapped text links. */
+  function linkRect(anchor, point) {
+    if (!anchor?.getBoundingClientRect) return null;
+    let rects = [];
+    try {
+      rects = [...anchor.getClientRects()].filter((r) => r.width > 0 && r.height > 0);
+    } catch {}
+
+    let rect = null;
+    if (point && rects.length) {
+      rect = rects.find(
+        (r) =>
+          point.x >= r.left &&
+          point.x <= r.right &&
+          point.y >= r.top &&
+          point.y <= r.bottom
+      );
+      if (!rect) {
+        rect = rects.reduce((nearest, candidate) => {
+          const distance = (r) => {
+            const x = clamp(point.x, r.left, r.right);
+            const y = clamp(point.y, r.top, r.bottom);
+            return (point.x - x) ** 2 + (point.y - y) ** 2;
+          };
+          return !nearest || distance(candidate) < distance(nearest) ? candidate : nearest;
+        }, null);
+      }
+    }
+    try {
+      return viewportRect(rect || anchor.getBoundingClientRect());
+    } catch {
+      return null;
+    }
+  }
+
+  function linkOrigin(anchor, point) {
+    const rect = linkRect(anchor, point);
+    if (!rect) return point;
+    return {
+      x: Number.isFinite(point?.x) ? point.x : rect.left + rect.width / 2,
+      y: Number.isFinite(point?.y) ? point.y : rect.top + rect.height / 2,
+      rect,
+    };
+  }
+
+  /** The untransformed panel box, including while a WAAPI transform is active. */
+  function panelLayoutRect(panel) {
+    const width = panel.offsetWidth;
+    const height = panel.offsetHeight;
+    const parent = panel.offsetParent;
+    if (width > 0 && height > 0 && parent) {
+      const p = parent.getBoundingClientRect();
+      return {
+        left: p.left + panel.offsetLeft,
+        top: p.top + panel.offsetTop,
+        width,
+        height,
+      };
+    }
+    const r = panel.getBoundingClientRect();
+    return { left: r.left, top: r.top, width: r.width, height: r.height };
+  }
+
+  /** Transform the panel's layout box so it exactly occupies the source rect. */
+  function transformIntoRect(panelRect, targetRect, originPoint) {
+    if (!panelRect.width || !panelRect.height || !targetRect) return null;
+    const sx = targetRect.width / panelRect.width;
+    const sy = targetRect.height / panelRect.height;
+    // Match the transform-origin percentages installed by reveal(). CSS
+    // applies translate/scale around that pivot, so compensate for its travel
+    // to keep every edge aligned with the link rect.
+    const ox = originPoint
+      ? clamp(
+          originPoint.x - panelRect.left,
+          (panelRect.width * ORIGIN_CLAMP[0]) / 100,
+          (panelRect.width * ORIGIN_CLAMP[1]) / 100
+        )
+      : panelRect.width / 2;
+    const oy = originPoint
+      ? clamp(
+          originPoint.y - panelRect.top,
+          (panelRect.height * ORIGIN_CLAMP[0]) / 100,
+          (panelRect.height * ORIGIN_CLAMP[1]) / 100
+        )
+      : panelRect.height / 2;
+    const dx = targetRect.left - panelRect.left - ox * (1 - sx);
+    const dy = targetRect.top - panelRect.top - oy * (1 - sy);
+    return `translate(${dx.toFixed(2)}px, ${dy.toFixed(2)}px) scale(${sx.toFixed(5)}, ${sy.toFixed(5)})`;
+  }
+
   /*
    * How long a revealed peek may show nothing at all before it gives up and
    * offers a tab. This is the backstop for a navigation that never commits:
@@ -347,6 +458,8 @@
       this.ignoreClose = 0;
       this.handshook = false;
       this.committed = false; // has any document in the frame fired load yet?
+      this.originPoint = null;
+      this.originRect = null;
       this.drag = null;
       this._build();
     }
@@ -816,7 +929,7 @@
       });
     }
 
-    /** Reveal the primed peek, growing from the point that was clicked. */
+    /** Reveal the primed peek, expanding from the clicked link when known. */
     reveal(originPoint) {
       if (this.state === "open") return;
       this.state = "open";
@@ -835,33 +948,58 @@
 
       lockScroll(true);
 
-      const r = this.panel.getBoundingClientRect();
-      if (originPoint) {
-        const ox = clamp(((originPoint.x - r.left) / r.width) * 100, ...ORIGIN_CLAMP);
-        const oy = clamp(((originPoint.y - r.top) / r.height) * 100, ...ORIGIN_CLAMP);
+      const r = panelLayoutRect(this.panel);
+      this.originPoint =
+        originPoint && Number.isFinite(originPoint.x) && Number.isFinite(originPoint.y)
+          ? { x: originPoint.x, y: originPoint.y }
+          : null;
+      this.originRect = viewportRect(originPoint?.rect);
+
+      const setPointOrigin = () => {
+        if (!this.originPoint || !r.width || !r.height) return;
+        const ox = clamp(((this.originPoint.x - r.left) / r.width) * 100, ...ORIGIN_CLAMP);
+        const oy = clamp(((this.originPoint.y - r.top) / r.height) * 100, ...ORIGIN_CLAMP);
         this.panel.style.setProperty("--origin-x", ox + "%");
         this.panel.style.setProperty("--origin-y", oy + "%");
-      }
+      };
 
-      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const reduce =
+        settings.reducedEffects || matchMedia("(prefers-reduced-motion: reduce)").matches;
       const S = getComputedStyle(this.root);
       const spring = S.getPropertyValue("--spring").trim() || "ease-out";
       const easeOut = S.getPropertyValue("--ease-out").trim() || "ease-out";
       const dur = reduce ? 130 : parseFloat(S.getPropertyValue("--dur-open")) || 440;
+      setPointOrigin();
+      const sourceTransform =
+        !reduce && transformIntoRect(r, this.originRect, this.originPoint);
 
-      const grow = this.panel.animate(
-        [
+      let openingFrames;
+      if (reduce) {
+        openingFrames = [{ transform: "none" }, { transform: "none" }];
+      } else if (sourceTransform) {
+        openingFrames = [{ transform: sourceTransform }, { transform: "none" }];
+      } else {
+        openingFrames = [
           { transform: "scale(0.955) translateY(10px)" },
           { transform: "scale(1) translateY(0)" },
-        ],
-        { duration: dur, easing: reduce ? easeOut : spring, fill: "none" }
-      );
+        ];
+      }
+
+      const grow = this.panel.animate(openingFrames, {
+        duration: dur,
+        easing: reduce ? easeOut : spring,
+        fill: "none",
+      });
       this.panel.animate([{ opacity: 0 }, { opacity: 1 }], {
         duration: Math.min(200, dur),
         easing: easeOut,
         fill: "none",
       });
-      grow.finished.then(() => (this.panel.style.willChange = "auto")).catch(() => {});
+      grow.finished
+        .then(() => {
+          this.panel.style.willChange = "auto";
+        })
+        .catch(() => {});
 
       this._animateBackdrop(true, reduce ? 120 : 300, easeOut);
 
@@ -1204,17 +1342,25 @@
 
       if (!wasOpen) return this._teardown();
 
-      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const reduce =
+        settings.reducedEffects || matchMedia("(prefers-reduced-motion: reduce)").matches;
       const S = getComputedStyle(this.root);
       const easeIn = S.getPropertyValue("--ease-in").trim() || "ease-in";
       const easeOut = S.getPropertyValue("--ease-out").trim() || "ease-out";
       const dur = reduce ? 100 : parseFloat(S.getPropertyValue("--dur-close")) || 190;
 
       const swipe = opts.from === "swipe";
+      const collapseRect = !swipe && !reduce ? viewportRect(this.originRect) : null;
+      const collapseTransform = collapseRect
+        ? transformIntoRect(panelLayoutRect(this.panel), collapseRect, this.originPoint)
+        : null;
+
       const start = this.panel.style.transform || "none";
       const end = swipe
         ? `translateX(${dismissSign() * Math.max(innerWidth * 0.5, 420)}px) scale(0.94)`
-        : "scale(0.975) translateY(6px)";
+        : reduce
+          ? "none"
+          : collapseTransform || "scale(0.975) translateY(6px)";
 
       // A swipe exit continues a motion that is already underway, so it has to
       // decelerate out of it. Easing *in* — correct for a dismissal that starts
@@ -1366,7 +1512,7 @@
     return Number.isFinite(ms) ? clamp(ms, 200, 1200) : 450;
   };
 
-  let hold = null; // { url, x, y, opened, timer }
+  let hold = null; // { url, anchor, x, y, opened, timer }
   let swallowClickUntil = 0;
 
   function endHold() {
@@ -1389,7 +1535,14 @@
       if (!hit) return;
 
       endHold();
-      hold = { url: hit.url.href, x: e.clientX, y: e.clientY, opened: false, timer: 0 };
+      hold = {
+        url: hit.url.href,
+        anchor: hit.a,
+        x: e.clientX,
+        y: e.clientY,
+        opened: false,
+        timer: 0,
+      };
       hold.timer = setTimeout(() => {
         if (!hold) return;
         hold.opened = true;
@@ -1399,7 +1552,8 @@
         // flag waiting for it would sit armed indefinitely.
         swallowClickUntil = performance.now() + 1200;
         ensureArmed();
-        openPeek(hold.url, { x: hold.x, y: hold.y });
+        const point = { x: hold.x, y: hold.y };
+        openPeek(hold.url, linkOrigin(hold.anchor, point));
       }, holdDelay());
     },
     true
@@ -1507,7 +1661,8 @@
     if (!url) return; // the capture listener above clears anything primed
     e.preventDefault();
     ensureArmed();
-    openPeek(url, { x: e.clientX, y: e.clientY });
+    const point = { x: e.clientX, y: e.clientY };
+    openPeek(url, linkOrigin(linkFrom(e)?.a, point));
   });
 
   /* ---- trigger: window.open / _blank from the main world ------------- */
@@ -1551,7 +1706,7 @@
         case "peek:open":
           if (msg.url) {
             ensureArmed();
-            openPeek(msg.url, lastPointer);
+            openPeek(msg.url, trackedOrigin(msg.url));
           }
           break;
         case "peek:promote-current":
@@ -1586,6 +1741,16 @@
     { capture: true, passive: true }
   );
 
+  function trackedOrigin(url) {
+    const el = lastHover || document.activeElement?.closest?.("a[href]");
+    if (!el) return lastPointer;
+    const href = el instanceof SVGAElement ? el.href.baseVal : el.href;
+    const expected = parseURL(url);
+    const actual = parseURL(href);
+    if (!expected || !actual || expected.href !== actual.href) return lastPointer;
+    return linkOrigin(el, lastPointer);
+  }
+
   function hoveredLink() {
     const el = lastHover || document.activeElement?.closest?.("a[href]");
     if (!el) return null;
@@ -1607,7 +1772,7 @@
   });
 
   NS.host = {
-    open: (url) => openPeek(url, lastPointer),
+    open: (url) => openPeek(url, trackedOrigin(url)),
     close: () => current?.close(),
     get current() {
       return current;

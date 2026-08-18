@@ -249,7 +249,7 @@ options.
 | `naturalScrolling` | on | Match your system's trackpad setting. It decides which way a swipe is *reported*, and no API exposes it — get it wrong and the pane runs away from your fingers. |
 | `swipeDirection` | `right` | The direction you move your fingers to dismiss. The pane always travels with them. `right` \| `left`. |
 | `swipeSensitivity` | `1` | How far the gesture must travel before the Peek lets go, `0.5`–`2`. It divides the threshold rather than scaling the motion, so the pane moves the same distance per finger — it just gives up sooner. At `1` that's ~149 px; at `2`, ~66 px. |
-| `reducedEffects` | off | Drop the backdrop blur. Worth it on integrated graphics. |
+| `reducedEffects` | off | Drop the backdrop blur and replace source-link morphs with short fades. Worth it on integrated graphics. |
 
 The swipe controls live under **Feel**:
 

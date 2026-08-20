@@ -274,17 +274,30 @@
    */
   const NO_COMMIT_GIVEUP_MS = 5000;
 
-  // Swipe-to-dismiss commit points, in panel pixels and px/ms. All are tested
-  // during the gesture rather than after it — see _wheel. A fling carries its
-  // own floor: however fast the flick, the panel has to have actually moved,
-  // or one sharp wheel tick would throw the peek away.
+  // Swipe-to-dismiss commit point in panel pixels. It is intentionally tested
+  // only after the wheel stream goes quiet: crossing the line while fingers
+  // are still down merely arms the action, so dragging back can always cancel
+  // it before release. A mouse's single horizontal wheel notch is not enough;
+  // _wheelEnd also requires more than one sample.
   const SWIPE_COMMIT_PX = 118;
-  const SWIPE_FLING_V = 0.9;
-  const SWIPE_FLING_MIN_PX = 46;
-  // The pane is fully faded by ~2.7× the commit distance. Held as a ratio so
-  // the fade keeps pace when sensitivity moves the threshold — otherwise a
-  // twitchy setting would dismiss while the pane still looked barely touched.
-  const SWIPE_FADE_RATIO = 320 / SWIPE_COMMIT_PX;
+  const SWIPE_RELEASE_IDLE_MS = 90;
+  const SWIPE_RELAYED_RELEASE_IDLE_MS = 200;
+  // Translation starts immediately, but semantic feedback waits through a
+  // short neutral zone so trackpad noise does not make the pane breathe. The
+  // ratio keeps that zone and the feedback at commit consistent when the user
+  // changes swipe sensitivity.
+  const SWIPE_FEEDBACK_DEAD_RATIO = 10 / SWIPE_COMMIT_PX;
+  const SWIPE_FEEDBACK_RANGE = 1.5;
+  const SWIPE_FEEDBACK_AT_COMMIT =
+    (1 - SWIPE_FEEDBACK_DEAD_RATIO) /
+    (SWIPE_FEEDBACK_RANGE - SWIPE_FEEDBACK_DEAD_RATIO);
+  const SWIPE_SCALE_DELTA = 0.026;
+  const SWIPE_DISMISS_FADE = 0.35;
+  const SWIPE_DISMISS_FADE_POWER = 1.7;
+  // Past the commit point the pane keeps following the hand, but with a little
+  // more resistance. Together with the armed cue this makes the threshold
+  // tangible without a bounce or an animation that can get ahead of the drag.
+  const SWIPE_ARMED_RESISTANCE = 0.58;
 
   /** Higher is twitchier: it divides every threshold, it doesn't scale motion. */
   const sensitivity = () => {
@@ -386,7 +399,7 @@
       this.panel = panel;
 
       panel.append(this._pane(), this._rail());
-      dlg.append(panel);
+      dlg.append(this._swipeCue(), panel);
       root.append(dlg);
       this.shadow.append(root);
 
@@ -422,6 +435,18 @@
 
       rail.append(this.btnClose, this.btnPromote, this._splitSlot());
       return rail;
+    }
+
+    /** A transient target in the space the pane reveals while it moves. */
+    _swipeCue() {
+      const cue = document.createElement("div");
+      cue.className = "swipe-cue";
+      cue.setAttribute("aria-hidden", "true");
+      cue.innerHTML =
+        `<span data-act="dismiss">${ICONS.close}</span>` +
+        `<span data-act="promote">${ICONS.promote}</span>`;
+      this.swipeCue = cue;
+      return cue;
     }
 
     /**
@@ -941,9 +966,20 @@
           v: 0,
           n: 0,
           act,
+          reduce: matchMedia("(prefers-reduced-motion: reduce)").matches,
           sign: opposite ? -1 : 1, // maps the gesture's own direction onto +travel
         };
         this.panel.dataset.dragging = "1";
+        this.swipeCue.dataset.active = "1";
+        this.swipeCue.dataset.action = act;
+        // Put the cue in the space revealed behind the moving pane, never on
+        // the side that is about to leave the viewport with the button rail.
+        this.swipeCue.dataset.side = dir * this.drag.sign > 0 ? "left" : "right";
+        this.swipeCue.dataset.armed = "0";
+        // reveal() grows the Peek out of its source link. That origin is right
+        // for opening, but asymmetric scaling during a horizontal drag looks
+        // like vertical drift, so direct manipulation always scales centrally.
+        this.panel.style.transformOrigin = "50% 50%";
         this.panel.style.willChange = "transform, opacity";
       }
       const travel = along * this.drag.sign;
@@ -965,78 +1001,118 @@
       const commitPx = SWIPE_COMMIT_PX / sens;
 
       const resisted = Math.pow(this.drag.x, 0.86) * 1.6;
-      const progress = clamp(resisted / (commitPx * SWIPE_FADE_RATIO), 0, 1);
+      const deadPx = commitPx * SWIPE_FEEDBACK_DEAD_RATIO;
+      const feedback = clamp(
+        (resisted - deadPx) / (commitPx * SWIPE_FEEDBACK_RANGE - deadPx),
+        0,
+        1
+      );
+      const displayPx = resisted <= commitPx
+        ? resisted
+        : commitPx + (resisted - commitPx) * SWIPE_ARMED_RESISTANCE;
+      const promote = this.drag.act === "promote";
+      const armed = resisted >= commitPx;
+      const cueProgress = clamp(feedback / SWIPE_FEEDBACK_AT_COMMIT, 0, 1);
+      this.swipeCue.dataset.armed = armed ? "1" : "0";
+      this.swipeCue.style.setProperty("--swipe-cue-opacity", cueProgress * 0.72);
+      this.swipeCue.style.setProperty("--swipe-cue-scale", 0.92 + cueProgress * 0.06);
+      // Dismiss recedes and fades because the content is leaving. Promote
+      // grows without fading because the same content is becoming persistent.
+      // Both derive from the current offset, so reversing the drag reverses
+      // the feedback exactly rather than playing a separate animation.
+      const scale = this.drag.reduce
+        ? 1
+        : 1 + feedback * SWIPE_SCALE_DELTA * (promote ? 1 : -1);
       this.panel.style.transform =
-        `translateX(${resisted * dir * this.drag.sign}px) scale(${1 - progress * 0.03})`;
-      // A dismissal is on its way out of existence, so it fades as it goes.
-      // The other two are on their way to becoming something you keep — a
-      // panel or a tab — so they don't.
+        `translateX(${displayPx * dir * this.drag.sign}px) scale(${scale})`;
       this.panel.style.opacity =
-        String(this.drag.act === "dismiss" ? 1 - progress * 0.35 : 1);
-
-      // Commit the moment the gesture earns it, rather than when the events
-      // stop arriving. macOS keeps delivering momentum wheel events for a few
-      // hundred ms after the fingers lift, and every one of them pushed the
-      // decision further out — so the panel hung at the end of the swipe,
-      // already past the threshold, waiting for physics that had nothing left
-      // to say. Deciding here also means the exit inherits the speed the
-      // finger had instead of restarting from rest.
-      // Both commits require more than one event. A trackpad swipe is dozens
-      // of them; a mouse's horizontal tilt-wheel is exactly one, and a single
-      // notch arrives scaled to ~150px — enough, on its own, to clear the
-      // distance threshold and throw away a peek nobody meant to dismiss.
-      const travelled = this.drag.n > 1 && resisted > commitPx;
-      const flung =
-        this.drag.n > 2 &&
-        this.drag.v > SWIPE_FLING_V / sens &&
-        resisted > SWIPE_FLING_MIN_PX / sens;
-      if (travelled || flung) {
-        const velocity = this.drag.v;
-        const act = this.drag.act;
-        clearTimeout(this._dragT);
-        // Where the pane is, and how fast it is going, at the moment the
-        // gesture hands over. close() reads the live transform for this;
-        // promote's exit needs the number as well, to finish the travel
-        // instead of hauling the pane back across the screen.
-        this._exit = { x: resisted * dir * this.drag.sign, velocity };
-        this.drag = null;
-        this.panel.dataset.dragging = "0";
-        if (act === "promote") this.promote();
-        else this.close({ from: "swipe", velocity });
-        return;
-      }
+        String(
+          promote
+            ? 1
+            : 1 - Math.pow(feedback, SWIPE_DISMISS_FADE_POWER) * SWIPE_DISMISS_FADE
+        );
 
       clearTimeout(this._dragT);
+      // WheelEvent exposes neither a trackpad touch-end nor Chromium's native
+      // momentum phase, so a short quiet window is the closest web-visible
+      // release signal. Until it expires this stays a purely visual preview:
+      // more events — including a reversal back under the threshold — remain
+      // free to change the outcome.
       // A relayed gesture is only as regular as the peeked page's main thread.
       // 90ms is right for events landing here directly; behind a busy page it
       // expires mid-swipe, springs the pane back to centre, and starts the
       // next event on a fresh drag that never accumulates enough to commit —
       // which is what a swipe that "doesn't work" over the pane looks like.
-      this._dragT = setTimeout(() => this._wheelEnd(), this.drag.relayed ? 200 : 90);
+      this._dragT = setTimeout(
+        () => this._wheelEnd(),
+        this.drag.relayed ? SWIPE_RELAYED_RELEASE_IDLE_MS : SWIPE_RELEASE_IDLE_MS
+      );
     }
 
-    /** Only ever the snap-back now — a committed swipe never reaches here. */
+    /** Settle the final offset once the wheel stream has gone quiet. */
     _wheelEnd() {
       if (!this.drag) return;
+      const drag = this.drag;
+      const commitPx = SWIPE_COMMIT_PX / sensitivity();
+      const resisted = Math.pow(drag.x, 0.86) * 1.6;
+      const displayPx = resisted <= commitPx
+        ? resisted
+        : commitPx + (resisted - commitPx) * SWIPE_ARMED_RESISTANCE;
+      // Requiring two samples keeps a single mouse tilt-wheel notch from
+      // committing even when the browser reports that notch as ~150px.
+      const committed = drag.n > 1 && resisted >= commitPx;
+
       this.drag = null;
+
+      if (committed) {
+        // Keep the ordinary rail hidden through the accepted exit. Letting it
+        // fade back in here briefly duplicates the fixed action cue before the
+        // pane disappears; teardown removes both together.
+        // Offset alone chooses the outcome. Velocity only lets the accepted
+        // action continue in the direction it was already travelling; a last
+        // second reversal can never turn a below-threshold release into a
+        // fling commit.
+        const velocity = Math.max(0, drag.v);
+        this._exit = {
+          x: displayPx * dismissSign() * drag.sign,
+          velocity,
+        };
+        if (drag.act === "promote") this.promote();
+        else this.close({ from: "swipe", velocity });
+        return;
+      }
+
+      // A cancelled gesture restores the normal controls with the pane.
       this.panel.dataset.dragging = "0";
+      this._clearSwipeCue();
 
       const S = getComputedStyle(this.root);
-      const spring = S.getPropertyValue("--spring").trim() || "ease-out";
+      const easeOut = S.getPropertyValue("--ease-out").trim() || "ease-out";
+      const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
       const a = this.panel.animate(
         [
           { transform: this.panel.style.transform, opacity: this.panel.style.opacity },
           { transform: "none", opacity: 1 },
         ],
-        { duration: 420, easing: spring, fill: "none" }
+        { duration: reduce ? 100 : 220, easing: easeOut, fill: "none" }
       );
       a.finished
         .then(() => {
           this.panel.style.transform = "";
           this.panel.style.opacity = "";
+          this.panel.style.transformOrigin = "";
           this.panel.style.willChange = "auto";
         })
         .catch(() => {});
+    }
+
+    _clearSwipeCue() {
+      delete this.swipeCue.dataset.active;
+      delete this.swipeCue.dataset.action;
+      delete this.swipeCue.dataset.side;
+      delete this.swipeCue.dataset.armed;
+      this.swipeCue.style.removeProperty("--swipe-cue-opacity");
+      this.swipeCue.style.removeProperty("--swipe-cue-scale");
     }
 
     /* ---- actions ----------------------------------------------------- */
@@ -1117,8 +1193,11 @@
         this._morphAnim?.cancel();
       } catch {}
       this.state = "open";
+      this.panel.dataset.dragging = "0";
       this.panel.style.transform = "";
       this.panel.style.opacity = "";
+      this.panel.style.transformOrigin = "";
+      this._clearSwipeCue();
       const S = getComputedStyle(this.root);
       this._animateBackdrop(true, 140, S.getPropertyValue("--ease-out").trim() || "ease-out");
 

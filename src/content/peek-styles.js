@@ -49,14 +49,17 @@ globalThis.__PEEK__.CSS = /* css */ `
   text-align: start;
   -webkit-font-smoothing: antialiased;
 
-  /* Geometry. The right inset has a hard floor because the button rail lives
-     in that gutter; below it the rail moves inside the pane instead. */
-  --inset-y: clamp(12px, 3.4vh, 38px);
-  --inset-x: clamp(52px, 5vw, 92px);
-  --max-w: 1340px;
-  --radius: 12px;
+  /* Geometry. At 100%, the pane uses the full safe viewport: the right
+     gutter fits the outside button rail plus one edge gap, and the left gets
+     the same gutter for visual balance. Below 720px the rail moves inside. */
   --orb: 30px;
   --rail-gap: 16px;
+  --edge-gap: 12px;
+  --inset-y: var(--edge-gap);
+  --inset-x: calc(var(--orb) + var(--rail-gap) + var(--edge-gap));
+  --peek-width: 85%;
+  --peek-height: 95%;
+  --radius: 12px;
 
   /* Motion — spring curve solved from stiffness 260 / damping 26 / mass 1.
      ~1.4% overshoot: enough to feel physical, never enough to look bouncy. */
@@ -157,8 +160,8 @@ dialog[open] { display: grid; place-items: center; }
    close transitions are driven from JS against these same values. */
 dialog::backdrop {
   background: rgba(16, 16, 18, 0.26);
-  backdrop-filter: blur(18px) saturate(112%);
-  -webkit-backdrop-filter: blur(18px) saturate(112%);
+  backdrop-filter: __PEEK_BACKDROP_FILTER__;
+  -webkit-backdrop-filter: __PEEK_BACKDROP_FILTER__;
 }
 .root[data-scheme="dark"] dialog::backdrop { background: rgba(0, 0, 0, 0.46); }
 .root[data-reduced-effects="1"] dialog::backdrop {
@@ -167,12 +170,23 @@ dialog::backdrop {
 }
 
 /* ── Panel ──────────────────────────────────────────────────────────────── */
+/* .bounds reserves the largest safe rectangle. The panel is a percentage of
+   that rectangle, so personalised dimensions stay responsive and never crowd
+   the outside button rail off-screen. */
+.bounds {
+  width: calc(100vw - var(--inset-x) * 2);
+  height: calc(100vh - var(--inset-y) * 2);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
 /* .panel is the animated, positioned box; it carries no paint of its own so
    the rail can hang outside it without being clipped. */
 .panel {
   position: relative;
-  width: min(calc(100vw - var(--inset-x) * 2), var(--max-w));
-  height: calc(100vh - var(--inset-y) * 2);
+  width: var(--peek-width);
+  height: var(--peek-height);
   transform-origin: var(--origin-x, 50%) var(--origin-y, 50%);
   will-change: transform, opacity;
   pointer-events: auto;
@@ -301,7 +315,7 @@ dialog::backdrop {
 /* Narrow windows have no gutter to spare, so the rail tucks into the pane's
    own top-right corner and the tooltips are dropped. */
 @media (max-width: 720px) {
-  .root { --inset-x: 12px; }
+  .root { --inset-x: var(--edge-gap); }
   .rail { left: auto; right: 10px; top: 10px; margin-left: 0; }
   [data-tip]::after { display: none; }
 }

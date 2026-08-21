@@ -8,6 +8,9 @@ const DEFAULTS = {
   blocklist: [],
   holdToPeek: true,
   holdDelay: 450,
+  peekWidth: 85,
+  peekHeight: 95,
+  backdropBlur: 18,
   reducedEffects: false,
   dismissOnSwipe: true,
   swipeOpposite: "promote",
@@ -57,6 +60,18 @@ function travelFor(sensitivity) {
 // Keyed by setting rather than by element type: two ranges sharing one
 // painter would have had the hold slider writing the swipe readout.
 const READOUTS = {
+  peekWidth: (v) => {
+    const n = Number(v);
+    return { el: "widthOut", text: `${Number.isFinite(n) ? n : 85}%` };
+  },
+  peekHeight: (v) => {
+    const n = Number(v);
+    return { el: "heightOut", text: `${Number.isFinite(n) ? n : 95}%` };
+  },
+  backdropBlur: (v) => {
+    const n = Number(v);
+    return { el: "blurOut", text: `${Number.isFinite(n) ? n : 18}px` };
+  },
   swipeSensitivity: (v) => {
     const n = Number(v) || 1;
     return { el: "sensOut", text: `${n.toFixed(1)}× · ${travelFor(n)} px` };

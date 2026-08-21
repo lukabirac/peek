@@ -31,6 +31,9 @@
     blocklist: [], // hosts that never peek automatically, from either end
     holdToPeek: true, // press and hold a link to peek it
     holdDelay: 450, // ms of stillness before a press counts as a hold
+    peekWidth: 85, // percent of the maximum safe pane width
+    peekHeight: 95, // percent of the maximum safe pane height
+    backdropBlur: 18, // backdrop blur in px; reducedEffects still wins
     reducedEffects: false, // drop backdrop blur on weak GPUs
     dismissOnSwipe: true,
     swipeOpposite: "promote", // 'promote' | 'off' — the gesture reversed
@@ -110,6 +113,26 @@
   function parseURL(href) {
     try {
       return new URL(href, location.href);
+    } catch {
+      return null;
+    }
+  }
+
+  // Chromium blocks an insecure subframe inside a secure page. Leaving these
+  // links to the browser preserves their normal navigation instead of opening
+  // a Peek that can only end in a Mixed Content error.
+  function isMixedFrame(url) {
+    return location.protocol === "https:" && url?.protocol === "http:";
+  }
+
+  function targetFrameURL(url, token) {
+    try {
+      const params = new URLSearchParams({
+        url,
+        token,
+        upgrade: location.protocol === "https:" ? "1" : "0",
+      });
+      return chrome.runtime.getURL("src/frame/frame.html") + "?" + params;
     } catch {
       return null;
     }
@@ -220,6 +243,7 @@
 
     const url = parseURL(a instanceof SVGAElement ? a.href.baseVal : a.href);
     if (!url || !PEEKABLE.test(url.protocol)) return null;
+    if (isMixedFrame(url)) return null;
     if (isSamePageAnchor(url)) return null;
 
     return { a, url };
@@ -260,6 +284,10 @@
 
   const ORIGIN_CLAMP = [8, 92];
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const numberSetting = (value, fallback, lo, hi) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? clamp(n, lo, hi) : fallback;
+  };
 
   /*
    * How long a revealed peek may show nothing at all before it gives up and
@@ -348,6 +376,9 @@
       this.handshook = false;
       this.committed = false; // has any document in the frame fired load yet?
       this.drag = null;
+      this.peekWidth = numberSetting(settings.peekWidth, 85, 50, 100);
+      this.peekHeight = numberSetting(settings.peekHeight, 95, 50, 100);
+      this.backdropBlur = numberSetting(settings.backdropBlur, 18, 0, 30);
       this._build();
     }
 
@@ -363,7 +394,12 @@
       this.shadow = this.mount.attachShadow({ mode: "closed" });
 
       const style = document.createElement("style");
-      style.textContent = SHEET;
+      style.textContent = SHEET.replaceAll(
+        "__PEEK_BACKDROP_FILTER__",
+        this.backdropBlur
+          ? `blur(${this.backdropBlur}px) saturate(112%)`
+          : "none"
+      );
       this.shadow.append(style);
 
       const root = document.createElement("div");
@@ -372,6 +408,8 @@
         ? "dark"
         : "light";
       root.dataset.reducedEffects = settings.reducedEffects ? "1" : "0";
+      root.style.setProperty("--peek-width", `${this.peekWidth}%`);
+      root.style.setProperty("--peek-height", `${this.peekHeight}%`);
       this.root = root;
 
       const dlg = document.createElement("dialog");
@@ -386,7 +424,11 @@
       this.panel = panel;
 
       panel.append(this._pane(), this._rail());
-      dlg.append(panel);
+
+      const bounds = document.createElement("div");
+      bounds.className = "bounds";
+      bounds.append(panel);
+      dlg.append(bounds);
       root.append(dlg);
       this.shadow.append(root);
 
@@ -495,22 +537,16 @@
       this.frame = document.createElement("iframe");
       this.frame.className = "frame";
       this.frame.setAttribute("allow", "clipboard-write; fullscreen; picture-in-picture");
-      this.frame.setAttribute("referrerpolicy", "no-referrer-when-downgrade");
+      this.frame.setAttribute("referrerpolicy", "no-referrer");
+      this.frame.setAttribute("sandbox", "allow-scripts");
       /*
-       * Everything a normal document can do, minus navigating the top frame.
-       * A cross-origin frame can't do that on load anyway, but once you have
-       * clicked inside a peek the frame holds user activation and a
-       * frame-busting site could throw your tab somewhere you never asked to
-       * go. Omitting both allow-top-navigation tokens is what stops it; the
-       * rest of the list is here to keep the peek as capable as it was.
+       * This extension-authored wrapper is sandboxed to an opaque origin. The
+       * target remains sandboxed one level down, where it is always cross-origin
+       * from its direct parent and cannot remove its own sandbox attribute.
+       * Keeping the wrapper opaque also lets the tab-scoped DNR rule apply to
+       * the target request; Chrome excludes extension-origin requests from it.
+       * See src/frame/frame.js.
        */
-      this.frame.setAttribute(
-        "sandbox",
-        "allow-same-origin allow-scripts allow-forms allow-modals " +
-          "allow-popups allow-popups-to-escape-sandbox allow-downloads " +
-          "allow-pointer-lock allow-presentation allow-orientation-lock " +
-          "allow-storage-access-by-user-activation"
-      );
 
       this.loader = document.createElement("div");
       this.loader.className = "loader";
@@ -574,8 +610,6 @@
       });
 
       this.dlg.addEventListener("keydown", (e) => this._key(e), true);
-
-      this.frame.addEventListener("load", () => this._onFrameLoad());
 
       // Either gesture is reason enough to listen; _wheel decides which of the
       // two a given swipe is and re-checks that its own setting is on.
@@ -646,6 +680,10 @@
       }
       if (!this.frame || e.source !== this.frame.contentWindow) return;
       const d = e.data;
+      if (d?.__peekFrame === "load" && d.token === this.token) {
+        this._onFrameLoad();
+        return;
+      }
       if (!d || d.__peek !== "child" || d.token !== this.token) return;
 
       switch (d.kind) {
@@ -746,11 +784,8 @@
 
     _onFrameLoad() {
       if (this._gone) return;
-      // A freshly created iframe fires load for its initial about:blank before
-      // we've even set src. Treating that as a committed document would start
-      // the "can't be embedded" countdown against a document that was never
-      // asked to load anything.
-      if (!this.frame.src || this.frame.src === "about:blank") return;
+      // The extension wrapper reports only loads of the nested target frame,
+      // never its own initial document, so every call here is a real commit.
       this.committed = true;
       // Every committed document is a new child that has to be greeted again.
       this.handshook = false;
@@ -773,6 +808,16 @@
     _blocked() {
       this.fallback.dataset.on = "1";
       this.loader.dataset.on = "0";
+      if (!extensionAlive()) {
+        this._say(
+          "Peek was updated",
+          "This tab is still running the previous version. Reload it and try " +
+            "the link again.",
+          "Reload This Page",
+          "reload"
+        );
+        return;
+      }
       this._say(
         (this.pendingHost || "This site") + " won’t load in a Peek",
         "It refuses to be embedded, so there’s nothing to preview here. " +
@@ -812,7 +857,12 @@
       } catch {}
       ensureArmed().then(() => {
         if (this._gone) return;
-        this.frame.src = url;
+        const src = targetFrameURL(url, this.token);
+        if (!src) {
+          this._promoteFailed();
+          return;
+        }
+        this.frame.src = src;
       });
     }
 
@@ -890,9 +940,12 @@
       const dark = this.root.dataset.scheme === "dark";
       const to = dark ? "rgba(0,0,0,0.44)" : "rgba(20,20,24,0.26)";
       const from = dark ? "rgba(0,0,0,0)" : "rgba(20,20,24,0)";
-      const blur = settings.reducedEffects
+      const blur = settings.reducedEffects || this.backdropBlur === 0
         ? ["none", "none"]
-        : ["blur(0px) saturate(100%)", "blur(18px) saturate(112%)"];
+        : [
+            "blur(0px) saturate(100%)",
+            `blur(${this.backdropBlur}px) saturate(112%)`,
+          ];
       const kf = [
         { backgroundColor: from, backdropFilter: blur[0], opacity: 0 },
         { backgroundColor: to, backdropFilter: blur[1], opacity: 1 },
@@ -1529,6 +1582,10 @@
     if (!url) return;
     const u = parseURL(url);
     if (!u || !PEEKABLE.test(u.protocol)) return;
+    if (isMixedFrame(u)) {
+      send({ type: "peek:open-tab", url: u.href, active: true });
+      return;
+    }
     // The shim only fires on eligible pages, so the page end is already
     // covered; the destination is not.
     if (pageBlocked() || hostBlocked(u.hostname)) return;
@@ -1550,8 +1607,13 @@
         // consults the blocklist.
         case "peek:open":
           if (msg.url) {
-            ensureArmed();
-            openPeek(msg.url, lastPointer);
+            const u = parseURL(msg.url);
+            if (isMixedFrame(u)) {
+              send({ type: "peek:open-tab", url: u.href, active: true });
+            } else {
+              ensureArmed();
+              openPeek(msg.url, lastPointer);
+            }
           }
           break;
         case "peek:promote-current":
@@ -1593,6 +1655,7 @@
     const href = el instanceof SVGAElement ? el.href.baseVal : el.href;
     const u = parseURL(href);
     if (!u || !PEEKABLE.test(u.protocol)) return null;
+    if (isMixedFrame(u)) return null;
     // The keyboard trigger bypasses resolveTrigger, so the exclusions a click
     // gets for free have to be restated. Without this, ⌥⇧P over a table-of-
     // contents link peeks the page you are already looking at.

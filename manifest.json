@@ -49,7 +49,12 @@
 
   "web_accessible_resources": [
     {
-      "resources": ["src/rail/split-button.html", "src/rail/split-button.js"],
+      "resources": [
+        "src/frame/frame.html",
+        "src/frame/frame.js",
+        "src/rail/split-button.html",
+        "src/rail/split-button.js"
+      ],
       "matches": ["<all_urls>"]
     }
   ],
